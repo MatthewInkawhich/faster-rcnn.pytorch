@@ -44,6 +44,10 @@ def prepare_roidb(imdb):
     # max overlap > 0 => class should not be zero (must be a fg class)
     nonzero_inds = np.where(max_overlaps > 0)[0]
     assert all(max_classes[nonzero_inds] != 0)
+    #if 'hflipped' not in roidb[i]:
+    #  roidb[i]['hflipped'] = False
+    #if 'vflipped' not in roidb[i]:
+    #  roidb[i]['vflipped'] = False
 
 
 def rank_roidb_ratio(roidb):
@@ -92,13 +96,12 @@ def combined_roidb(imdb_names, training=True):
 
   def get_training_roidb(imdb):
     """Returns a roidb (Region of Interest database) for use in training."""
-    if cfg.TRAIN.USE_FLIPPED:
-      print('Appending horizontally-flipped training examples...')
+    if cfg.TRAIN.USE_HFLIPPED or cfg.TRAIN.USE_VFLIPPED:
+      print('Appending flipped training examples...')
       imdb.append_flipped_images()
       print('done')
 
     print('Preparing training data...')
-
     prepare_roidb(imdb)
     #ratio_index = rank_roidb_ratio(imdb)
     print('done')

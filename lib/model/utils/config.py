@@ -86,8 +86,13 @@ __C.TRAIN.FG_THRESH = 0.5
 __C.TRAIN.BG_THRESH_HI = 0.5
 __C.TRAIN.BG_THRESH_LO = 0.1
 
-# Use horizontally-flipped images during training?
-__C.TRAIN.USE_FLIPPED = True
+# Use flipped images during training?
+__C.TRAIN.USE_HFLIPPED = True
+__C.TRAIN.USE_VFLIPPED = True
+
+# Noise augmentation settings
+__C.TRAIN.USE_BLUR = False
+__C.TRAIN.BLUR_KERNEL = 5
 
 # Train bounding-box regressors
 __C.TRAIN.BBOX_REG = True
@@ -182,7 +187,7 @@ __C.TEST.SVM = False
 __C.TEST.BBOX_REG = True
 
 # Propose boxes
-__C.TEST.HAS_RPN = False
+__C.TEST.HAS_RPN = True
 
 # Test using these proposals
 __C.TEST.PROPOSAL_METHOD = 'gt'

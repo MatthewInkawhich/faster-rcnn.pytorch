@@ -41,17 +41,28 @@ class _fasterRCNN(nn.Module):
         self.RCNN_roi_align = ROIAlign((cfg.POOLING_SIZE, cfg.POOLING_SIZE), 1.0/16.0, 0)
 
     def forward(self, im_data, im_info, gt_boxes, num_boxes):
+        #print("im_data:", im_data.size(), im_data.dtype)
+        #print("im_info:", im_info.size(), im_info.dtype)
+        #print("gt_boxes:", gt_boxes.size(), gt_boxes.dtype)
+        #print("im_info:", num_boxes.size(), num_boxes.dtype)
+
         batch_size = im_data.size(0)
 
         im_info = im_info.data
         gt_boxes = gt_boxes.data
         num_boxes = num_boxes.data
 
+
         # feed image data to base model to obtain base feature map
         base_feat = self.RCNN_base(im_data)
+        #print("base_feat:", base_feat.size())
 
         # feed base feature map tp RPN to obtain rois
         rois, rpn_loss_cls, rpn_loss_bbox = self.RCNN_rpn(base_feat, im_info, gt_boxes, num_boxes)
+        #print("rois:", rois.size(), rois.dtype)
+        #print("rpn_loss_cls:", rpn_loss_cls, rpn_loss_cls.size(), rpn_loss_cls.dtype)
+        #print("rpn_loss_bbox:", rpn_loss_bbox, rpn_loss_bbox.size(), rpn_loss_bbox.dtype)
+        #exit()
 
         # if it is training phrase, then use ground trubut bboxes for refining
         if self.training:
@@ -79,7 +90,10 @@ class _fasterRCNN(nn.Module):
             pooled_feat = self.RCNN_roi_pool(base_feat, rois.view(-1,5))
 
         # feed pooled features to top model
-        pooled_feat = self._head_to_tail(pooled_feat)
+        #print("pooled_feat before:", pooled_feat.size())
+        pooled_feat = self._head_to_tail(pooled_feat)  
+        #print("pooled_feat after:", pooled_feat.size())
+        #exit()
 
         # compute bbox offset
         bbox_pred = self.RCNN_bbox_pred(pooled_feat)

@@ -78,6 +78,9 @@ def parse_args():
   parser.add_argument('--cag', dest='class_agnostic',
                       help='whether perform class_agnostic bbox regression',
                       action='store_true')
+  parser.add_argument('--im_norm', dest='image_norm',
+                      help='whether to normalize image data by /255',
+                      action='store_true')
 
 # config optimization
   parser.add_argument('--o', dest='optimizer',
@@ -195,6 +198,7 @@ if __name__ == '__main__':
   cfg.TRAIN.USE_FLIPPED = True
   cfg.USE_GPU_NMS = args.cuda
   imdb, roidb, ratio_list, ratio_index = combined_roidb(args.imdb_name)
+
   train_size = len(roidb)
 
   print('{:d} roidb entries'.format(len(roidb)))
@@ -313,6 +317,9 @@ if __name__ == '__main__':
               im_info.resize_(data[1].size()).copy_(data[1])
               gt_boxes.resize_(data[2].size()).copy_(data[2])
               num_boxes.resize_(data[3].size()).copy_(data[3])
+
+      if args.image_norm:
+          im_data /= 255.0
 
       fasterRCNN.zero_grad()
       rois, cls_prob, bbox_pred, \

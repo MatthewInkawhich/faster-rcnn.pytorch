@@ -1,12 +1,16 @@
 #!/bin/bash
 
-CUDA_VISIBLE_DEVICES=3 python trainval_net.py \
+CUDA_VISIBLE_DEVICES=2,3 python -u trainval_net.py \
 			--dataset pascal_voc \
 			--net res101 \
-			--disp_interval 1 \
-			--bs 4 \
-			--nw 0 \
-			--lr 4e-3 \
+			--disp_interval 100 \
+			--bs 16 \
+			--nw 4 \
+			--lr 1e-2 \
 			--lr_decay_step 8 \
 			--epochs 10 \
-			--cuda 
+			--cuda \
+                        --mGPUs \
+                        --s 2 \
+                        --im_norm
+	 

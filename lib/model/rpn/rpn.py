@@ -61,21 +61,31 @@ class _RPN(nn.Module):
 
         # return feature map after convrelu layer
         rpn_conv1 = F.relu(self.RPN_Conv(base_feat), inplace=True)
+
+        #print("rpn_conv1:", rpn_conv1.size())   
+
         # get rpn classification score
         rpn_cls_score = self.RPN_cls_score(rpn_conv1)
+ 
+        #print("rpn_cls_score:", rpn_cls_score.size())
 
         rpn_cls_score_reshape = self.reshape(rpn_cls_score, 2)
+        #print("rpn_cls_score_reshape:", rpn_cls_score_reshape.size())
         rpn_cls_prob_reshape = F.softmax(rpn_cls_score_reshape, 1)
         rpn_cls_prob = self.reshape(rpn_cls_prob_reshape, self.nc_score_out)
 
+        #print("rpn_cls_prob:", rpn_cls_prob.size())
+
         # get rpn offsets to the anchor boxes
         rpn_bbox_pred = self.RPN_bbox_pred(rpn_conv1)
+        #print("rpn_bbox_pred:", rpn_bbox_pred.size())
 
         # proposal layer
         cfg_key = 'TRAIN' if self.training else 'TEST'
 
-        rois = self.RPN_proposal((rpn_cls_prob.data, rpn_bbox_pred.data,
-                                 im_info, cfg_key))
+        rois = self.RPN_proposal((rpn_cls_prob.data, rpn_bbox_pred.data, im_info, cfg_key))
+        #print("rois:", rois.size())
+
 
         self.rpn_loss_cls = 0
         self.rpn_loss_box = 0

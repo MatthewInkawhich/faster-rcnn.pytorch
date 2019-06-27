@@ -13,6 +13,8 @@ from __future__ import print_function
 import numpy as np
 import numpy.random as npr
 #from scipy.misc import imread
+import matplotlib.pyplot as plt
+import cv2
 from imageio import imread
 from model.utils.config import cfg
 from model.utils.blob import prep_im_for_blob, im_list_to_blob
@@ -69,12 +71,28 @@ def _get_image_blob(roidb, scale_inds):
     if len(im.shape) == 2:
       im = im[:,:,np.newaxis]
       im = np.concatenate((im,im,im), axis=2)
+
+    # Randomly apply noise augmentations
+    if cfg.TRAIN.USE_BLUR:
+      #orig = np.copy(im)
+      im = cv2.blur(im, (cfg.TRAIN.BLUR_KERNEL, cfg.TRAIN.BLUR_KERNEL))
+      #f, axarr = plt.subplots(1, 2)
+      #axarr[0].imshow(orig)
+      #axarr[1].imshow(im)
+      #plt.show()
+      #exit()
+
     # flip the channel, since the original one using cv2
     # rgb -> bgr
     im = im[:,:,::-1]
 
-    if roidb[i]['flipped']:
+    # Flip image if necessary
+    if roidb[i]['hflipped']:
       im = im[:, ::-1, :]
+    elif roidb[i]['vflipped']:
+      im = im[::-1, :, :] 
+
+    # Scale image and append to list
     target_size = cfg.TRAIN.SCALES[scale_inds[i]]
     im, im_scale = prep_im_for_blob(im, cfg.PIXEL_MEANS, target_size,
                     cfg.TRAIN.MAX_SIZE)
