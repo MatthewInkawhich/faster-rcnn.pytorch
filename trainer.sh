@@ -12,5 +12,4 @@ CUDA_VISIBLE_DEVICES=2,3 python -u trainval_net.py \
 			--cuda \
                         --mGPUs \
                         --s 2 \
-                        --im_norm
 	 

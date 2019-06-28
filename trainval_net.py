@@ -78,9 +78,8 @@ def parse_args():
   parser.add_argument('--cag', dest='class_agnostic',
                       help='whether perform class_agnostic bbox regression',
                       action='store_true')
-  parser.add_argument('--im_norm', dest='image_norm',
-                      help='whether to normalize image data by /255',
-                      action='store_true')
+  parser.add_argument('--cfg_file', dest='cfg_file', help='config file', default='./cfg/xview/A.yml', type=str)
+
 
 # config optimization
   parser.add_argument('--o', dest='optimizer',
@@ -148,6 +147,14 @@ class sampler(Sampler):
   def __len__(self):
     return self.num_data
 
+
+
+
+
+
+################################################################
+### MAIN
+################################################################
 if __name__ == '__main__':
 
   args = parse_args()
@@ -177,8 +184,13 @@ if __name__ == '__main__':
       args.imdb_name = "vg_150-50-50_minitrain"
       args.imdbval_name = "vg_150-50-50_minival"
       args.set_cfgs = ['ANCHOR_SCALES', '[4, 8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]', 'MAX_NUM_GT_BOXES', '50']
-
-  args.cfg_file = "cfgs/{}_ls.yml".format(args.net) if args.large_scale else "cfgs/{}.yml".format(args.net)
+  elif args.dataset == "xview_700":
+      args.imdb_name = "xview_700_train"
+      args.imdbval_name = "xview_700_val"
+      args.set_cfgs = None
+      
+  if 'xview' not in args.dataset:
+    args.cfg_file = "cfgs/{}_ls.yml".format(args.net) if args.large_scale else "cfgs/{}.yml".format(args.net)
 
   if args.cfg_file is not None:
     cfg_from_file(args.cfg_file)
@@ -195,13 +207,14 @@ if __name__ == '__main__':
 
   # train set
   # -- Note: Use validation set and disable the flipped to enable faster loading.
-  cfg.TRAIN.USE_FLIPPED = True
   cfg.USE_GPU_NMS = args.cuda
   imdb, roidb, ratio_list, ratio_index = combined_roidb(args.imdb_name)
 
   train_size = len(roidb)
 
   print('{:d} roidb entries'.format(len(roidb)))
+
+  exit()
 
   output_dir = args.save_dir + "/" + args.net + "/" + args.dataset
   if not os.path.exists(output_dir):
@@ -318,9 +331,15 @@ if __name__ == '__main__':
               gt_boxes.resize_(data[2].size()).copy_(data[2])
               num_boxes.resize_(data[3].size()).copy_(data[3])
 
-      if args.image_norm:
-          im_data /= 255.0
+      #if args.image_norm:
+      #    im_data /= 255.0
 
+      print("im_data:", im_data.size())
+      print("im_info:", im_info.size())
+      print("gt_boxes:", gt_boxes.size())
+      print("num_boxes:", num_boxes)
+      exit()
+      
       fasterRCNN.zero_grad()
       rois, cls_prob, bbox_pred, \
       rpn_loss_cls, rpn_loss_box, \
