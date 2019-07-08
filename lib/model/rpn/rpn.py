@@ -55,7 +55,7 @@ class _RPN(nn.Module):
         )
         return x
 
-    def forward(self, base_feat, im_info, gt_boxes, num_boxes):
+    def forward(self, base_feat, im_info, gt_boxes, num_boxes, get_anchors=False):
 
         batch_size = base_feat.size(0)
 
@@ -68,6 +68,7 @@ class _RPN(nn.Module):
         rpn_cls_score = self.RPN_cls_score(rpn_conv1)
  
         #print("rpn_cls_score:", rpn_cls_score.size())
+        #exit()
 
         rpn_cls_score_reshape = self.reshape(rpn_cls_score, 2)
         #print("rpn_cls_score_reshape:", rpn_cls_score_reshape.size())
@@ -86,9 +87,13 @@ class _RPN(nn.Module):
         rois = self.RPN_proposal((rpn_cls_prob.data, rpn_bbox_pred.data, im_info, cfg_key))
         #print("rois:", rois.size())
 
-
         self.rpn_loss_cls = 0
         self.rpn_loss_box = 0
+
+        # USED TO VISUALIZE ANCHORS
+        if get_anchors:
+            anchors = self.RPN_anchor_target.get_anchors((rpn_cls_score.data, gt_boxes, im_info, num_boxes))
+            return anchors
 
         # generating training labels and build the rpn loss
         if self.training:

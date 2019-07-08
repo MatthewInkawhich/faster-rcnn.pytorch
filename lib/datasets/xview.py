@@ -36,6 +36,11 @@ except NameError:
 
 # <<<< obsolete
 
+def read_classes_from_file(data_path):
+    label_file_path = os.path.join(data_path, 'xview_class_labels_clean.txt')
+    labels = [line.rstrip('\n').lower() for line in open(label_file_path)]
+    labels.insert(0, '__background__')
+    return labels
 
 class xview(imdb):
     def __init__(self, image_set, chip_scale, devkit_path=None):
@@ -45,8 +50,7 @@ class xview(imdb):
         self._devkit_path = self._get_default_path() if devkit_path is None \
             else devkit_path
         self._data_path = self._devkit_path
-        self._classes = self._read_classes_from_file()
-        self._classes.insert(0, '__background__')
+        self._classes = read_classes_from_file(self._data_path)
         self._class_to_ind = dict(zip(self.classes, xrange(self.num_classes)))
         self._image_ext = '.png'
         self._image_index = self._load_image_set_index()
@@ -70,10 +74,6 @@ class xview(imdb):
             'Path does not exist: {}'.format(self._data_path)
 
 
-    def _read_classes_from_file(self):
-        label_file_path = os.path.join(self._data_path, 'xview_class_labels_clean.txt')
-        labels = [line.rstrip('\n').lower() for line in open(label_file_path)]
-        return labels
 
     def image_path_at(self, i):
         """
@@ -233,10 +233,10 @@ class xview(imdb):
         for ix, obj in enumerate(objs):
             bbox = obj.find('bndbox')
             # Make pixel indexes 0-based
-            x1 = float(bbox.find('xmin').text) - 1
-            y1 = float(bbox.find('ymin').text) - 1
-            x2 = float(bbox.find('xmax').text) - 1
-            y2 = float(bbox.find('ymax').text) - 1
+            x1 = float(bbox.find('xmin').text)
+            y1 = float(bbox.find('ymin').text)
+            x2 = float(bbox.find('xmax').text)
+            y2 = float(bbox.find('ymax').text)
 
             diffc = obj.find('difficult')
             difficult = 0 if diffc == None else int(diffc.text)

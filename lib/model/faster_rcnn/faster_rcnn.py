@@ -40,7 +40,13 @@ class _fasterRCNN(nn.Module):
         self.RCNN_roi_pool = ROIPool((cfg.POOLING_SIZE, cfg.POOLING_SIZE), 1.0/16.0)
         self.RCNN_roi_align = ROIAlign((cfg.POOLING_SIZE, cfg.POOLING_SIZE), 1.0/16.0, 0)
 
-    def forward(self, im_data, im_info, gt_boxes, num_boxes):
+        # Initialize RPN replicate layers
+        self.rep_nc_score_out = len(cfg.ANCHOR_SCALES) * len(cfg.ANCHOR_RATIOS) * 2 # 2(bg/fg) * num_anchors
+        self.rep_RPN_Conv = nn.Conv2d(self.dout_base_model, 512, 3, 1, 1, bias=True)
+        self.rep_RPN_cls_score = nn.Conv2d(512, self.rep_nc_score_out, 1, 1, 0)
+
+
+    def forward(self, im_data, im_info, gt_boxes, num_boxes, get_anchors=False):
         #print("im_data:", im_data.size(), im_data.dtype)
         #print("im_info:", im_info.size(), im_info.dtype)
         #print("gt_boxes:", gt_boxes.size(), gt_boxes.dtype)
@@ -56,6 +62,12 @@ class _fasterRCNN(nn.Module):
         # feed image data to base model to obtain base feature map
         base_feat = self.RCNN_base(im_data)
         #print("base_feat:", base_feat.size())
+        #exit()
+
+        if get_anchors:
+          anchors = self.RCNN_rpn(base_feat, im_info, gt_boxes, num_boxes, get_anchors=True)
+          return anchors
+
 
         # feed base feature map tp RPN to obtain rois
         rois, rpn_loss_cls, rpn_loss_bbox = self.RCNN_rpn(base_feat, im_info, gt_boxes, num_boxes)
@@ -144,3 +156,12 @@ class _fasterRCNN(nn.Module):
     def create_architecture(self):
         self._init_modules()
         self._init_weights()
+
+    def forward_to_anchor_map(self, im_data):
+        # feed image data to base model to obtain base feature map
+        base_feat = self.RCNN_base(im_data)
+        # return feature map after convrelu layer
+        rpn_conv1 = F.relu(self.rep_RPN_Conv(base_feat), inplace=True)
+        # get rpn classification score
+        rpn_cls_score = self.rep_RPN_cls_score(rpn_conv1)
+        return rpn_cls_score

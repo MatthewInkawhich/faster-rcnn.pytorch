@@ -33,7 +33,7 @@ class _ProposalLayer(nn.Module):
         super(_ProposalLayer, self).__init__()
 
         self._feat_stride = feat_stride
-        self._anchors = torch.from_numpy(generate_anchors(scales=np.array(scales),
+        self._anchors = torch.from_numpy(generate_anchors(base_size=cfg.ANCHOR_BASE_SIZE, scales=np.array(scales),
             ratios=np.array(ratios))).float()
         self._num_anchors = self._anchors.size(0)
 

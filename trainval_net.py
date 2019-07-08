@@ -214,8 +214,6 @@ if __name__ == '__main__':
 
   print('{:d} roidb entries'.format(len(roidb)))
 
-  exit()
-
   output_dir = args.save_dir + "/" + args.net + "/" + args.dataset
   if not os.path.exists(output_dir):
     os.makedirs(output_dir)
@@ -264,6 +262,9 @@ if __name__ == '__main__':
     pdb.set_trace()
 
   fasterRCNN.create_architecture()
+
+  #print(fasterRCNN.RCNN_base)
+  #exit()
 
   lr = cfg.TRAIN.LEARNING_RATE
   lr = args.lr
@@ -331,14 +332,11 @@ if __name__ == '__main__':
               gt_boxes.resize_(data[2].size()).copy_(data[2])
               num_boxes.resize_(data[3].size()).copy_(data[3])
 
-      #if args.image_norm:
-      #    im_data /= 255.0
-
-      print("im_data:", im_data.size())
-      print("im_info:", im_info.size())
-      print("gt_boxes:", gt_boxes.size())
-      print("num_boxes:", num_boxes)
-      exit()
+      #print("im_data:", im_data.size())
+      #print("im_info:", im_info.size())
+      #print("gt_boxes:", gt_boxes.size())
+      #print("num_boxes:", num_boxes)
+      #exit()
       
       fasterRCNN.zero_grad()
       rois, cls_prob, bbox_pred, \
