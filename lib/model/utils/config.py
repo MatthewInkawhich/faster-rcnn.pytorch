@@ -309,6 +309,9 @@ __C.CUDA = False
 
 __C.CROP_RESIZE_WITH_MAX_POOL = True
 
+# Sutract 1 from bbox coords if this is true (VOC), will result in integer overflow on xview if True
+__C.PIXEL_SHIFT = True
+
 import pdb
 def get_output_dir(imdb, weights_filename):
   """Return the directory where experimental artifacts are placed.

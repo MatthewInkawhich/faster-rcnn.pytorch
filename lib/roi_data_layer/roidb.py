@@ -22,7 +22,6 @@ def prepare_roidb(imdb):
   if not (imdb.name.startswith('coco')):
     sizes = [PIL.Image.open(imdb.image_path_at(i)).size
          for i in range(imdb.num_images)]
-         
   for i in range(len(imdb.image_index)):
     roidb[i]['img_id'] = imdb.image_id_at(i)
     roidb[i]['image'] = imdb.image_path_at(i)
@@ -89,7 +88,7 @@ def filter_roidb(roidb):
     print('after filtering, there are %d images...' % (len(roidb)))
     return roidb
 
-def combined_roidb(imdb_names, training=True):
+def combined_roidb(imdb_names, training=True, shift=True):
   """
   Combine multiple roidbs
   """
@@ -98,7 +97,7 @@ def combined_roidb(imdb_names, training=True):
     """Returns a roidb (Region of Interest database) for use in training."""
     if cfg.TRAIN.USE_HFLIPPED or cfg.TRAIN.USE_VFLIPPED:
       print('Appending flipped training examples...')
-      imdb.append_flipped_images()
+      imdb.append_flipped_images(shift)
       print('done')
 
     print('Preparing training data...')

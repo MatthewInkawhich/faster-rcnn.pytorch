@@ -125,7 +125,7 @@ class imdb(object):
       heights.append(size[1])
     return widths, heights
 
-  def append_flipped_images(self):
+  def append_flipped_images(self, shift=True):
     num_images = self.num_images
     widths, heights = self._get_image_dims()
     for i in range(num_images):
@@ -133,8 +133,12 @@ class imdb(object):
         boxes = self.roidb[i]['boxes'].copy()
         oldx1 = boxes[:, 0].copy()
         oldx2 = boxes[:, 2].copy()
-        boxes[:, 0] = widths[i] - oldx2 - 1
-        boxes[:, 2] = widths[i] - oldx1 - 1
+        if shift:
+            boxes[:, 0] = widths[i] - oldx2 - 1
+            boxes[:, 2] = widths[i] - oldx1 - 1
+        else:
+            boxes[:, 0] = widths[i] - oldx2
+            boxes[:, 2] = widths[i] - oldx1
         assert (boxes[:, 2] >= boxes[:, 0]).all()
         entry = {'boxes': boxes,
                'gt_overlaps': self.roidb[i]['gt_overlaps'],
@@ -146,8 +150,12 @@ class imdb(object):
         boxes = self.roidb[i]['boxes'].copy()
         oldy1 = boxes[:, 1].copy()
         oldy2 = boxes[:, 3].copy()
-        boxes[:, 1] = heights[i] - oldy2 - 1
-        boxes[:, 3] = heights[i] - oldy1 - 1
+        if shift:
+            boxes[:, 1] = heights[i] - oldy2 - 1
+            boxes[:, 3] = heights[i] - oldy1 - 1
+        else:
+            boxes[:, 1] = heights[i] - oldy2
+            boxes[:, 3] = heights[i] - oldy1
         assert (boxes[:, 3] >= boxes[:, 1]).all()
         entry = {'boxes': boxes,
                'gt_overlaps': self.roidb[i]['gt_overlaps'],

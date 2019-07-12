@@ -66,9 +66,6 @@ def parse_args():
   parser.add_argument('--ls', dest='large_scale',
                       help='whether use large imag scale',
                       action='store_true')
-  parser.add_argument('--mGPUs', dest='mGPUs',
-                      help='whether use multiple GPUs',
-                      action='store_true')
   parser.add_argument('--cag', dest='class_agnostic',
                       help='whether perform class_agnostic bbox regression',
                       action='store_true')
@@ -125,8 +122,12 @@ if __name__ == '__main__':
       args.imdb_name = "vg_150-50-50_minitrain"
       args.imdbval_name = "vg_150-50-50_minival"
       args.set_cfgs = ['ANCHOR_SCALES', '[4, 8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]']
+  elif args.dataset == "xview_700":
+      args.imdbval_name = "xview_700_val"
+      args.set_cfgs = None
 
-  args.cfg_file = "cfgs/{}_ls.yml".format(args.net) if args.large_scale else "cfgs/{}.yml".format(args.net)
+  if 'xview' not in args.dataset:
+    args.cfg_file = "cfgs/{}_ls.yml".format(args.net) if args.large_scale else "cfgs/{}.yml".format(args.net)
 
   if args.cfg_file is not None:
     cfg_from_file(args.cfg_file)
@@ -136,8 +137,9 @@ if __name__ == '__main__':
   print('Using config:')
   pprint.pprint(cfg)
 
-  cfg.TRAIN.USE_FLIPPED = False
-  imdb, roidb, ratio_list, ratio_index = combined_roidb(args.imdbval_name, False)
+  cfg.TRAIN.USE_HFLIPPED = False
+  cfg.TRAIN.USE_VFLIPPED = False
+  imdb, roidb, ratio_list, ratio_index = combined_roidb(args.imdbval_name, training=False, shift=cfg.PIXEL_SHIFT)
   imdb.competition_mode(on=True)
 
   print('{:d} roidb entries'.format(len(roidb)))
@@ -146,7 +148,7 @@ if __name__ == '__main__':
   if not os.path.exists(input_dir):
     raise Exception('There is no input directory for loading network from ' + input_dir)
   load_name = os.path.join(input_dir,
-    'faster_rcnn_{}_{}_{}.pth'.format(args.checksession, args.checkepoch, args.checkpoint))
+    'faster_rcnn_{}_{}_{}_{}.pth'.format(cfg.EXP_DIR, args.checksession, args.checkepoch, args.checkpoint))
 
   # initilize the network here.
   if args.net == 'vgg16':
@@ -166,6 +168,7 @@ if __name__ == '__main__':
   print("load checkpoint %s" % (load_name))
   checkpoint = torch.load(load_name)
   fasterRCNN.load_state_dict(checkpoint['model'])
+
   if 'pooling_mode' in checkpoint.keys():
     cfg.POOLING_MODE = checkpoint['pooling_mode']
 
@@ -197,7 +200,7 @@ if __name__ == '__main__':
     fasterRCNN.cuda()
 
   start = time.time()
-  max_per_image = 100
+  max_per_image = cfg.MAX_NUM_GT_BOXES * 2
 
   vis = args.vis
 
@@ -206,7 +209,7 @@ if __name__ == '__main__':
   else:
     thresh = 0.0
 
-  save_name = 'faster_rcnn_10'
+  save_name = cfg.EXP_DIR
   num_images = len(imdb.image_index)
   all_boxes = [[[] for _ in xrange(num_images)]
                for _ in xrange(imdb.num_classes)]
@@ -225,8 +228,8 @@ if __name__ == '__main__':
 
   fasterRCNN.eval()
   empty_array = np.transpose(np.array([[],[],[],[],[]]), (1,0))
-  for i in range(num_images):
 
+  for i in range(num_images):
       data = next(data_iter)
       with torch.no_grad():
               im_data.resize_(data[0].size()).copy_(data[0])
@@ -270,6 +273,12 @@ if __name__ == '__main__':
       det_toc = time.time()
       detect_time = det_toc - det_tic
       misc_tic = time.time()
+
+
+      #print("scores:", scores.size(), scores.element_size() * scores.nelement())
+      #print("pred_boxes:", pred_boxes.shape, pred_boxes.element_size() * pred_boxes.nelement())
+      #print("box_deltas:", box_deltas.size(), box_deltas.element_size() * box_deltas.nelement())
+
       if vis:
           im = cv2.imread(imdb.image_path_at(i))
           im2show = np.copy(im)
@@ -308,9 +317,10 @@ if __name__ == '__main__':
       misc_toc = time.time()
       nms_time = misc_toc - misc_tic
 
-      sys.stdout.write('im_detect: {:d}/{:d} {:.3f}s {:.3f}s   \r' \
-          .format(i + 1, num_images, detect_time, nms_time))
-      sys.stdout.flush()
+      #sys.stdout.write('im_detect: {:d}/{:d} {:.3f}s {:.3f}s   \r' \
+      #    .format(i + 1, num_images, detect_time, nms_time))
+      #sys.stdout.flush()
+      print('im_detect: {}/{} det:{:.5f} nms:{:.5f}  tot:{:.5f}'.format(i + 1, num_images, detect_time, nms_time, detect_time+nms_time))
 
       if vis:
           cv2.imwrite('result.png', im2show)

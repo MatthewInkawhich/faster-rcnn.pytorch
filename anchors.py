@@ -58,7 +58,6 @@ image_path = data_path + '/JPEGImages/img_104_6_rot0.png'
 net = 'res101'
 cfg_file = 'cfgs/xview/A.yml'
 class_agnostic = False
-num_anchors_per_pos = len(cfg.ANCHOR_SCALES) * len(cfg.ANCHOR_RATIOS)
 
 bbox_row = 50
 bbox_col = 50
@@ -197,6 +196,7 @@ if __name__ == '__main__':
 
   #####  Load configs
   cfg_from_file(cfg_file)
+  num_anchors_per_pos = len(cfg.ANCHOR_SCALES) * len(cfg.ANCHOR_RATIOS)
   cfg.USE_GPU_NMS = torch.cuda.is_available()
   np.random.seed(cfg.RNG_SEED)
   print("loaded configs")
@@ -273,7 +273,7 @@ if __name__ == '__main__':
   # Extract image index from image_path
   image_index = image_path.split('/')[-1].split('.')[0]
 
-  #dimage = draw_anchor_centers(dimage, anchors_to_show, linesize=1)
+  dimage = draw_anchor_centers(dimage, anchors_to_show, linesize=1)
   dimage = draw_anchor_types(dimage, 1550, anchors)
   dimage = draw_gt_boxes(dimage, image_index)
 

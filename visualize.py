@@ -14,6 +14,7 @@ import numpy as np
 import argparse
 import pprint
 import pdb
+from PIL import Image, ImageDraw
 import time
 import cv2
 import matplotlib
@@ -40,22 +41,26 @@ from model.utils.blob import im_list_to_blob
 from model.faster_rcnn.vgg16 import vgg16
 from model.faster_rcnn.resnet import resnet
 import pdb
+import datasets.xview
+import anchors
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 ################################################
 ### Settings
 ################################################
-image_path = 'images/img3.jpg'
-dataset = 'pascal_voc'
+data_path = 'data/xView-voc-700'
+image_path = data_path + '/JPEGImages/img_104_6_rot0.png'
+dataset = 'xview_700'
 load_dir = 'models'
 net = 'res101'
-cfg_file = "cfgs/{}.yml".format(net)
+cfg_file = 'cfgs/xview/B.yml'
 checksession = 1
-checkepoch = 10
-checkpoint = 625
+checkepoch = 4
+checkpoint = 12653
 class_agnostic = False
 conf_thresh_for_det = 0.05
 vis_thresh = 0.5
+plot_gt = True
 
 
 
@@ -113,24 +118,19 @@ if __name__ == '__main__':
   if not os.path.exists(input_dir):
     raise Exception('There is no input directory for loading network from ' + input_dir)
   load_name = os.path.join(input_dir,
-    'faster_rcnn_{}_{}_{}.pth'.format(checksession, checkepoch, checkpoint))
+    'faster_rcnn_{}_{}_{}_{}.pth'.format(cfg.EXP_DIR, checksession, checkepoch, checkpoint))
 
-  pascal_classes = np.asarray(['__background__',
-                       'aeroplane', 'bicycle', 'bird', 'boat',
-                       'bottle', 'bus', 'car', 'cat', 'chair',
-                       'cow', 'diningtable', 'dog', 'horse',
-                       'motorbike', 'person', 'pottedplant',
-                       'sheep', 'sofa', 'train', 'tvmonitor'])
+  classes = datasets.xview.read_classes_from_file(data_path)
 
   # initilize the network here.
   if net == 'vgg16':
-    fasterRCNN = vgg16(pascal_classes, pretrained=False, class_agnostic=class_agnostic)
+    fasterRCNN = vgg16(classes, pretrained=False, class_agnostic=class_agnostic)
   elif net == 'res101':
-    fasterRCNN = resnet(pascal_classes, 101, pretrained=False, class_agnostic=class_agnostic)
+    fasterRCNN = resnet(classes, 101, pretrained=False, class_agnostic=class_agnostic)
   elif net == 'res50':
-    fasterRCNN = resnet(pascal_classes, 50, pretrained=False, class_agnostic=class_agnostic)
+    fasterRCNN = resnet(classes, 50, pretrained=False, class_agnostic=class_agnostic)
   elif net == 'res152':
-    fasterRCNN = resnet(pascal_classes, 152, pretrained=False, class_agnostic=class_agnostic)
+    fasterRCNN = resnet(classes, 152, pretrained=False, class_agnostic=class_agnostic)
   else:
     print("network is not defined")
     pdb.set_trace()
@@ -148,7 +148,6 @@ if __name__ == '__main__':
   fasterRCNN.load_state_dict(checkpoint['model'])
   if 'pooling_mode' in checkpoint.keys():
     cfg.POOLING_MODE = checkpoint['pooling_mode']
-
 
   # Create tensor placeholders
   im_data = torch.empty(1, dtype=torch.float32, device=device)
@@ -213,7 +212,7 @@ if __name__ == '__main__':
         if class_agnostic:
             box_deltas = box_deltas.view(1, -1, 4)
         else:
-            box_deltas = box_deltas.view(1, -1, 4 * len(pascal_classes))
+            box_deltas = box_deltas.view(1, -1, 4 * len(classes))
 
       # transform and clip boxes to lay on image
       pred_boxes = bbox_transform_inv(boxes, box_deltas, 1)
@@ -231,7 +230,16 @@ if __name__ == '__main__':
   detect_time = det_toc - det_tic
   im2show = np.copy(im)
 
-  for j in range(1, len(pascal_classes)):
+  # bgr -> rgb
+  im2show = im2show[:,:,::-1]
+
+  # Plot ground truth if desired
+  if plot_gt:
+      im2show = Image.fromarray(im2show)
+      im2show = anchors.draw_gt_boxes(im2show, image_path.split('/')[-1].split('.')[0])
+      im2show = np.array(im2show)
+
+  for j in range(1, len(classes)):
       # Gather indices of the boxes that detected class j with '> thresh' confidence 
       inds = torch.nonzero(scores[:,j]>conf_thresh_for_det).view(-1)
       # If there is a detection
@@ -248,11 +256,10 @@ if __name__ == '__main__':
         keep = nms(cls_boxes[order, :], cls_scores[order], cfg.TEST.NMS)
         cls_dets = cls_dets[keep.view(-1).long()]
         # Keep adding boxes to existing im2show
-        im2show = vis_detections(im2show, pascal_classes[j], cls_dets.cpu().numpy(), thresh=vis_thresh)
+        im2show = vis_detections(im2show, classes[j], cls_dets.cpu().numpy(), thresh=vis_thresh)
 
 
-# bgr -> rgb
-im2show = im2show[:,:,::-1]
+
 plt.imshow(im2show)
 plt.show()
 
