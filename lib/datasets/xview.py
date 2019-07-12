@@ -36,8 +36,8 @@ except NameError:
 
 # <<<< obsolete
 
-def read_classes_from_file(data_path):
-    label_file_path = os.path.join(data_path, 'xview_class_labels_clean.txt')
+def read_classes_from_file(meta_path):
+    label_file_path = os.path.join(meta_path, 'xview_class_labels_clean.txt')
     labels = [line.rstrip('\n').lower() for line in open(label_file_path)]
     labels.insert(0, '__background__')
     return labels
@@ -50,7 +50,8 @@ class xview(imdb):
         self._devkit_path = self._get_default_path() if devkit_path is None \
             else devkit_path
         self._data_path = self._devkit_path
-        self._classes = read_classes_from_file(self._data_path)
+        self._meta_path = self._get_meta_path()
+        self._classes = read_classes_from_file(self._meta_path)
         self._class_to_ind = dict(zip(self.classes, xrange(self.num_classes)))
         self._image_ext = '.png'
         self._image_index = self._load_image_set_index()
@@ -116,6 +117,9 @@ class xview(imdb):
         Return the default path where xView-voc is expected to be installed.
         """
         return os.path.join(cfg.DATA_DIR, 'xView-voc-' + self._chip_scale)
+
+    def _get_meta_path(self):
+        return os.path.join(cfg.DATA_DIR, 'xView-meta')
 
     def gt_roidb(self):
         """

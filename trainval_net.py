@@ -227,7 +227,7 @@ if __name__ == '__main__':
   gt_boxes = torch.FloatTensor(1)
 
   # ship to cuda
-  if args.cuda:
+  if args.cuda:      
     im_data = im_data.cuda()
     im_info = im_info.cuda()
     num_boxes = num_boxes.cuda()
