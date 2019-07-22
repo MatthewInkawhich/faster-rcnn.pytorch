@@ -56,6 +56,9 @@ def parse_args():
   parser.add_argument('--checkpoint_interval', dest='checkpoint_interval',
                       help='number of iterations to display',
                       default=10000, type=int)
+  parser.add_argument('--save_iter', dest='save_iter',
+                      help='number of iterations to display',
+                      default=2000, type=int)
 
   parser.add_argument('--save_dir', dest='save_dir',
                       help='directory to save models', default="models",
@@ -179,8 +182,9 @@ if __name__ == '__main__':
       # train scale: ['150-50-20', '150-50-50', '500-150-80', '750-250-150', '1750-700-450', '1600-400-20']
       args.imdb_name = "vg_150-50-50_minitrain"
       args.set_cfgs = ['ANCHOR_SCALES', '[4, 8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]', 'MAX_NUM_GT_BOXES', '50']
-  elif args.dataset == "xview_700":
-      args.imdb_name = "xview_700_train"
+  # xview
+  elif "xview" in args.dataset:
+      args.imdb_name = "xview_" + args.dataset.split('_')[-1] + "_train"
       args.set_cfgs = None
       
   if 'xview' not in args.dataset:
@@ -313,6 +317,7 @@ if __name__ == '__main__':
     loss_temp = 0
     start = time.time()
 
+    # Adjust learning rate if necessary
     if epoch % (args.lr_decay_step + 1) == 0:
         adjust_learning_rate(optimizer, args.lr_decay_gamma)
         lr *= args.lr_decay_gamma
@@ -387,7 +392,20 @@ if __name__ == '__main__':
         loss_temp = 0
         start = time.time()
 
+        # Save every so many iterations
+        if step != 0 and step % args.save_iter == 0:
+            save_name = os.path.join(output_dir, 'faster_rcnn_{}_{}_{}_{}.pth'.format(cfg.EXP_DIR, args.session, epoch, step))
+            save_checkpoint({
+              'session': args.session,
+              'epoch': epoch + 1,
+              'model': fasterRCNN.module.state_dict() if args.mGPUs else fasterRCNN.state_dict(),
+              'optimizer': optimizer.state_dict(),
+              'pooling_mode': cfg.POOLING_MODE,
+              'class_agnostic': args.class_agnostic,
+            }, save_name)
+            print('save model: {}'.format(save_name))
     
+    # Save every epoch
     save_name = os.path.join(output_dir, 'faster_rcnn_{}_{}_{}_{}.pth'.format(cfg.EXP_DIR, args.session, epoch, step))
     save_checkpoint({
       'session': args.session,

@@ -210,7 +210,7 @@ class roibatchLoader(data.Dataset):
         gt_boxes = torch.FloatTensor([1,1,1,1,1])
         num_boxes = 0
 
-        return data, im_info, gt_boxes, num_boxes
+        return data, im_info, gt_boxes, num_boxes, self._roidb[index]['image']
 
   def __len__(self):
     return len(self._roidb)

@@ -36,11 +36,13 @@ except NameError:
 
 # <<<< obsolete
 
+# Read classes from file
 def read_classes_from_file(meta_path):
     label_file_path = os.path.join(meta_path, 'xview_class_labels_clean.txt')
     labels = [line.rstrip('\n').lower() for line in open(label_file_path)]
     labels.insert(0, '__background__')
     return labels
+
 
 class xview(imdb):
     def __init__(self, image_set, chip_scale, devkit_path=None):
@@ -141,6 +143,31 @@ class xview(imdb):
         print('wrote gt roidb to {}'.format(cache_file))
 
         return gt_roidb
+
+
+    # Return a dictionary relating full frame IDs to chip paths for the current chip_scale
+    # Only need to call this once, as it gives dicts for all ff IDs
+    # ex: ff_to_chip_map['img_100'] --> [(4, '/to/a/chip/path'), (44, '/to/a/chip/path'), ...]
+    # first element of tuple is to index into chip dataloader, second element is to check that path makes sense
+    def get_ff_to_chip_map(self, ff_imageset_path):
+        # Read ids into list from ff val.txt imageset file ("img_2047")
+        ff_ids = [line.rstrip('\n') for line in open(ff_imageset_path)]
+        # Initialize dict
+        ff_to_chip_map = {}
+        # Iterate over all ff ids
+        for cur_ff_id in ff_ids:
+            # Initialize each ff_id key with an empty list
+            ff_to_chip_map[cur_ff_id] = []
+            # For each ff id, iterate over all chip indexes
+            for i, cur_chip_id in enumerate(self._image_index):
+                # Check if idxs match
+                if cur_ff_id+'_' in cur_chip_id:
+                    # Append tuple of (i, chip_path) to list under ff_id key in dict
+                    ff_to_chip_map[cur_ff_id].append((i, self.image_path_at(i)))
+        return ff_to_chip_map
+
+        
+
 
 #    def selective_search_roidb(self):
 #        """

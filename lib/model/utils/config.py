@@ -302,8 +302,8 @@ __C.ANCHOR_RATIOS = [0.5,1,2]
 # Base anchor size (in pixels) to scale
 __C.ANCHOR_BASE_SIZE = 16
 
-# Feature stride for RPN
-__C.FEAT_STRIDE = [16, ]
+# Feature stride for RPN (set to the downsample factor of image to RCNN_base feature map spatial size (default=16x)
+__C.FEAT_STRIDE = [16]
 
 __C.CUDA = False
 

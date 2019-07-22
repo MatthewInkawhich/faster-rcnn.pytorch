@@ -56,11 +56,9 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 data_path = 'data/xView-voc-700'
 image_path = data_path + '/JPEGImages/img_104_6_rot0.png'
 net = 'res101'
-cfg_file = 'cfgs/xview/A.yml'
+#cfg_file = 'cfgs/xview/A.yml'
+cfg_file = 'cfgs/xview/test.yml'
 class_agnostic = False
-
-bbox_row = 50
-bbox_col = 50
 
 
 ################################################
@@ -169,11 +167,12 @@ def draw_anchor_centers(img, anchors, color='red', linesize=3):
         
     
 def draw_anchor_types(img, index, anchors, linesize=3):
-    color_choices = ['red', 'green', 'blue', 'purple', 'orange', 'white']
+    color_choices = ['red', 'green', 'blue', 'purple', 'orange', 'cyan']
     # Get anchors corresponding to index
     index *= num_anchors_per_pos
     assert index >= 0 and index < len(anchors)
     box_set = anchors[index:index+num_anchors_per_pos]
+    print("box_set:", box_set)
     # Plot boxes in set
     for i in range(len(cfg.ANCHOR_SCALES)):
         for j in range(i, num_anchors_per_pos, len(cfg.ANCHOR_SCALES)):
@@ -259,6 +258,7 @@ if __name__ == '__main__':
   ##### Forward pass image through detection model
   anchors = fasterRCNN(im_data, im_info, gt_boxes, num_boxes, get_anchors=True)
   anchors = anchors.detach().cpu().numpy().astype(np.int32)
+  print("anchors:", anchors.shape)
 
 
   ##### Draw on image
@@ -273,10 +273,14 @@ if __name__ == '__main__':
   # Extract image index from image_path
   image_index = image_path.split('/')[-1].split('.')[0]
 
-  dimage = draw_anchor_centers(dimage, anchors_to_show, linesize=1)
-  dimage = draw_anchor_types(dimage, 1550, anchors)
-  dimage = draw_gt_boxes(dimage, image_index)
+  #dimage = draw_anchor_centers(dimage, anchors_to_show, linesize=1)
+  dimage = draw_anchor_types(dimage, 990, anchors)
+  #dimage = draw_gt_boxes(dimage, image_index)
 
   ##### Show image
+  plt.axis('off')
+  plt.title('Anchor Scales: [16,32,64,128,256,512]')
+  #plt.title('Anchor Stride: 24px')
   plt.imshow(dimage)
+  #plt.savefig('../xview_project/anchor_stride_24.pdf')
   plt.show()

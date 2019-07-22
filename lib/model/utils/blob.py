@@ -8,6 +8,9 @@
 """Blob helper functions."""
 
 import numpy as np
+import matplotlib
+matplotlib.use('tkagg')
+import matplotlib.pyplot as plt
 # from scipy.misc import imread, imresize
 import cv2
 
@@ -34,7 +37,6 @@ def im_list_to_blob(ims):
 
 def prep_im_for_blob(im, pixel_means, target_size, max_size):
     """Mean subtract and scale an image for use in a blob."""
-
     im = im.astype(np.float32, copy=False)
     im -= pixel_means
     # im = im[:, :, ::-1]

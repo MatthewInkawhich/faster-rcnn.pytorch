@@ -8,7 +8,7 @@ CUDA_VISIBLE_DEVICES=2 python -u trainval_net.py \
 			--disp_interval 1 \
 			--bs 4 \
 			--nw 0 \
-			--lr 1e-4 \
+			--lr 1e-3 \
 			--lr_decay_step 8 \
 			--epochs 10 \
 			--cuda \

@@ -61,7 +61,7 @@ for split in ['train', 'val', 'val1', 'val2', 'test']:
     __sets[name] = (lambda split=split, devkit_path=devkit_path, data_path=data_path: imagenet(split,devkit_path,data_path))
 
 # xView
-for chip_scale in ['700']:
+for chip_scale in ['200', '400', '600', '700', '800', 'ff']:
     for split in ['train', 'val']:
         name = 'xview_{}_{}'.format(chip_scale, split)
         __sets[name] = (lambda split=split, chip_scale=chip_scale: xview(split, chip_scale))

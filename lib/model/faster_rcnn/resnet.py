@@ -102,6 +102,154 @@ class Bottleneck(nn.Module):
     return out
 
 
+############################################################
+### Custom
+############################################################
+# NAI
+# Dont automatically relu the output
+class Bottleneck(nn.Module):
+  expansion = 4
+
+  def __init__(self, inplanes, planes, stride=1, downsample=None, islast=False):
+    super(Bottleneck, self).__init__()
+    self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=1, stride=stride, bias=False) # change
+    self.bn1 = nn.BatchNorm2d(planes)
+    self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, stride=1, # change
+                 padding=1, bias=False)
+    self.bn2 = nn.BatchNorm2d(planes)
+    self.conv3 = nn.Conv2d(planes, planes * 4, kernel_size=1, bias=False)
+    self.bn3 = nn.BatchNorm2d(planes * 4)
+    self.relu = nn.ReLU(inplace=True)
+    self.downsample = downsample
+    self.stride = stride
+    self.islast = islast
+
+  def forward(self, x):
+    residual = x
+
+    out = self.conv1(x)
+    out = self.bn1(out)
+    out = self.relu(out)
+
+    out = self.conv2(out)
+    out = self.bn2(out)
+    out = self.relu(out)
+
+    out = self.conv3(out)
+    out = self.bn3(out)
+
+    if self.downsample is not None:
+      residual = self.downsample(x)
+
+    out += residual
+
+    if not self.islast:
+      out = self.relu(out)
+
+    return out
+
+# NAI
+class Custom_ResNet(nn.Module):
+
+  def __init__(self, block, layers):
+    super(Custom_ResNet, self).__init__()
+    self.num_layers = len(layers) # How many layers in the short resnet
+    self.inplanes = 64
+    self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3,bias=False)
+    self.bn1 = nn.BatchNorm2d(64)
+    self.relu = nn.ReLU(inplace=True)
+    self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+
+    self.layer1 = None
+    self.layer2 = None
+    self.layer3 = None
+    self.layer4 = None
+
+    if self.num_layers >= 1:  
+        self.layer1 = self._make_layer(block, 64, layers[0], islast=(self.num_layers==1))
+    if self.num_layers >= 2:  
+        self.layer2 = self._make_layer(block, 128, layers[1], stride=2, islast=(self.num_layers==2))
+    if self.num_layers >= 3:  
+        self.layer3 = self._make_layer(block, 256, layers[2], stride=2, islast=(self.num_layers==3))
+    if self.num_layers >= 4:  
+        self.layer4 = self._make_layer(block, 512, layers[3], stride=2, islast=(self.num_layers==4))
+
+    # Shouldnt need these in this custom resnet
+    #self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+    #self.fc = nn.Linear(512 * block.expansion, num_classes)
+
+  def _make_layer(self, block, planes, blocks, stride=1, islast=False):
+    downsample = None
+    if stride != 1 or self.inplanes != planes * block.expansion:
+        downsample = nn.Sequential(
+            conv1x1(self.inplanes, planes * block.expansion, stride),
+            nn.BatchNorm2d(planes * block.expansion),
+        )   
+    layers = []
+    layers.append(block(self.inplanes, planes, stride, downsample, islast=(islast and blocks==1)))
+    self.inplanes = planes * block.expansion
+    for cnt in range(1, blocks):
+        layers.append(block(self.inplanes, planes, islast=(islast and (cnt==blocks-1))))
+    return nn.Sequential(*layers)
+
+  def forward(self, x): 
+    x = self.conv1(x)
+    x = self.bn1(x)
+    x = self.relu(x)
+    x = self.maxpool(x)
+    if self.num_layers >= 1:  
+        x = self.layer1(x)
+    if self.num_layers >= 2:  
+        x = self.layer2(x)
+    if self.num_layers >= 3:  
+        x = self.layer3(x)
+    if self.num_layers >= 4:  
+        x = self.layer4(x)
+    #x = self.avgpool(x)
+    #x = x.view(x.size(0), -1)
+    #x = self.fc(x)
+    return x
+
+
+# NAI
+def custom_resnet101(cfg):
+  model = Custom_ResNet(CustomBottleneck, cfg)
+  return model
+
+def get_truncated_resnet101(cfg):
+  model_path = 'data/pretrained_model/resnet101_caffe.pth'
+  full_model = resnet101()
+  print("Loading pretrained weights from %s" %(model_path))
+  state_dict = torch.load(model_path)
+  resnet.load_state_dict({k:v for k,v in state_dict.items() if k in full_model.state_dict()})
+  cfg = activations_model.split("_")
+  print("cfg: ",cfg)
+  if len(cfg) == 4:
+    # Just output full model
+    small_model = resnet101()
+  elif (len(cfg)<=3) and (len(cfg)>=1):
+    small_model = custom_resnet101(cfg)
+  else:
+    exit("Invalid Resnet small model config...")
+
+  print("model built, initializing weights")
+  full_model_state = full_model.state_dict()   
+  # Initialize small model params from the full model params
+  small_net_state = {}
+  for smallkey in small_model.state_dict().keys():
+    if smallkey in full_model_state.keys():
+      small_net_state[smallkey] = full_model_state[smallkey]
+    else:
+      exit("key not found in small model initialization")
+  small_model.load_state_dict(small_net_state)
+
+  return small_model
+
+##########################################################
+##########################################################
+
+
+
 class ResNet(nn.Module):
   def __init__(self, block, layers, num_classes=1000):
     self.inplanes = 64
@@ -111,9 +259,20 @@ class ResNet(nn.Module):
     self.bn1 = nn.BatchNorm2d(64)
     self.relu = nn.ReLU(inplace=True)
     self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=0, ceil_mode=True) # change
+
+    # Set strides correctly
+    if cfg.FEAT_STRIDE[0] == 8:
+        strides = [2, 1]
+    elif cfg.FEAT_STRIDE[0] == 16:
+        strides = [2, 2]
+    elif cfg.FEAT_STRIDE[0] == 24:
+        strides = [2, 3]
+    #elif cfg.FEAT_STRIDE[0] == 32:
+    #    strides = [2, 4]
+
     self.layer1 = self._make_layer(block, 64, layers[0])
-    self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
-    self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
+    self.layer2 = self._make_layer(block, 128, layers[1], stride=strides[0])
+    self.layer3 = self._make_layer(block, 256, layers[2], stride=strides[1])
     self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
     # it is slightly better whereas slower to set stride = 1
     # self.layer4 = self._make_layer(block, 512, layers[3], stride=1)
@@ -161,6 +320,7 @@ class ResNet(nn.Module):
     x = self.fc(x)
 
     return x
+
 
 
 def resnet18(pretrained=False):
