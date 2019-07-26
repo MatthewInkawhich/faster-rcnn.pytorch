@@ -206,6 +206,7 @@ class roibatchLoader(data.Dataset):
     else:
         data = data.permute(0, 3, 1, 2).contiguous().view(3, data_height, data_width)
         im_info = im_info.view(3)
+        #print("roidb[{}]:".format(index), self._roidb[index])
 
         gt_boxes = torch.FloatTensor([1,1,1,1,1])
         num_boxes = 0

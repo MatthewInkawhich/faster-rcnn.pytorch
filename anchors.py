@@ -99,7 +99,7 @@ def _get_image_blob(im):
   return blob, np.array(im_scale_factors)
 
 
-def load_pascal_boxes(index):
+def load_pascal_boxes(data_path, index):
     """
     Load image and bounding boxes info from XML file in the PASCAL VOC
     format.
@@ -110,7 +110,7 @@ def load_pascal_boxes(index):
     num_objs = len(objs)
 
     boxes = np.zeros((num_objs, 4), dtype=np.uint16)
-    #gt_classes = np.zeros((num_objs), dtype=np.int32)
+    gt_classes = np.zeros((num_objs), dtype=np.int32)
 
     # Load object bounding boxes into a data frame.
     for ix, obj in enumerate(objs):
@@ -125,7 +125,7 @@ def load_pascal_boxes(index):
         boxes[ix, :] = [x1, y1, x2, y2]
         #gt_classes[ix] = cls
 
-    return boxes
+    return boxes #gt_classes
             #'gt_classes': gt_classes}
 
 
@@ -180,8 +180,8 @@ def draw_anchor_types(img, index, anchors, linesize=3):
     return dimage
 
 
-def draw_gt_boxes(img, image_index, color='yellow', linesize=3):
-    boxes_np = load_pascal_boxes(image_index)
+def draw_gt_boxes(img, data_path, image_index, color='yellow', linesize=3):
+    boxes_np = load_pascal_boxes(data_path, image_index)
     boxes = boxes_np.tolist()
     dimage = draw_bboxes(img, boxes, color=color, linesize=linesize)
     return dimage

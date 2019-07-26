@@ -50,7 +50,7 @@ class _fasterRCNN(nn.Module):
         self.rep_RPN_cls_score = nn.Conv2d(512, self.rep_nc_score_out, 1, 1, 0)
 
 
-    def forward(self, im_data, im_info, gt_boxes, num_boxes, get_anchors=False):
+    def forward(self, im_data, im_info, gt_boxes, num_boxes, rpn_output=False, get_anchors=False):
         #print("im_data:", im_data.size(), im_data.dtype)
         #print("im_info:", im_info.size(), im_info.dtype)
         #print("gt_boxes:", gt_boxes.size(), gt_boxes.dtype)
@@ -74,11 +74,13 @@ class _fasterRCNN(nn.Module):
 
 
         # feed base feature map tp RPN to obtain rois
-        rois, rpn_loss_cls, rpn_loss_bbox = self.RCNN_rpn(base_feat, im_info, gt_boxes, num_boxes)
+        rois, rpn_scores, rpn_loss_cls, rpn_loss_bbox = self.RCNN_rpn(base_feat, im_info, gt_boxes, num_boxes)
         #print("rois:", rois.size(), rois.dtype)
         #print("rpn_loss_cls:", rpn_loss_cls, rpn_loss_cls.size(), rpn_loss_cls.dtype)
         #print("rpn_loss_bbox:", rpn_loss_bbox, rpn_loss_bbox.size(), rpn_loss_bbox.dtype)
         #exit()
+        if rpn_output:
+            return rois, rpn_scores, rpn_loss_cls, rpn_loss_bbox
 
         # if it is training phrase, then use ground trubut bboxes for refining
         if self.training:

@@ -15,6 +15,7 @@ import numpy as np
 import scipy.sparse
 import subprocess
 import math
+import csv
 import glob
 import uuid
 import scipy.io as sio
@@ -78,11 +79,16 @@ class xview(imdb):
 
 
 
-    def image_path_at(self, i):
+    def image_path_at(self, i, tif=False):
         """
         Return the absolute path to image i in the image sequence.
         """
-        return self.image_path_from_index(self._image_index[i])
+        path = self.image_path_from_index(self._image_index[i])
+        if tif:
+            ff_id_num = path.split('/')[-1].split('_')[1].split('.')[0]
+            path = os.path.join(self._meta_path, 'train_images', ff_id_num+'.tif')
+
+        return path
 
     def image_id_at(self, i):
         """
@@ -165,6 +171,25 @@ class xview(imdb):
                     # Append tuple of (i, chip_path) to list under ff_id key in dict
                     ff_to_chip_map[cur_ff_id].append((i, self.image_path_at(i)))
         return ff_to_chip_map
+
+
+    # Return a dictionary relating (full frame ID, chip_number) to a tuple (x_offset, y_offset)
+    def get_chip_offsets(self):
+        chip_offset_csv_path = os.path.join(self._data_path, 'ImageSets', 'Main', 'chip_offsets.csv')
+        # Read lines into list of lists [[100,18,240,320], ...]
+        with open(chip_offset_csv_path, 'r') as f:
+            reader = csv.reader(f)
+            csv_lines = list(reader)
+        # Initialize dict
+        chip_offsets = {}
+        # Fill dict
+        for line in csv_lines:
+            img_id = "img_"+line[0]
+            chip_number = line[1]
+            x_offset = int(line[2])
+            y_offset = int(line[3])
+            chip_offsets[(img_id, chip_number)] = (x_offset, y_offset)
+        return chip_offsets
 
         
 
@@ -321,7 +346,12 @@ class xview(imdb):
                                        dets[k, 0] + 1, dets[k, 1] + 1,
                                        dets[k, 2] + 1, dets[k, 3] + 1))
 
-    def _do_python_eval(self, output_dir='output'):
+    def _do_python_eval(self, output_dir='output', rpn=False):
+        # Initialize rpn_arg... if it is empty string, it is normal test, if not, use the passed classname as the rpn "object" placeholder
+        if rpn:
+            rpn_arg = self.classes[1]
+        else:
+            rpn_arg = ""
         annopath = os.path.join(
             self._devkit_path,
             'Annotations',
@@ -344,7 +374,7 @@ class xview(imdb):
             filename = self._get_voc_results_file_template().format(cls)
             rec, prec, ap = voc_eval(
                 filename, annopath, imagesetfile, cls, cachedir, ovthresh=0.5,
-                use_07_metric=use_07_metric, xview=True)
+                use_07_metric=use_07_metric, xview=True, rpn=rpn_arg)
             aps += [ap]
             print('AP for {} = {:.4f}'.format(cls, ap))
             with open(os.path.join(output_dir, cls + '_pr.pkl'), 'wb') as f:
@@ -353,8 +383,8 @@ class xview(imdb):
         print('~~~~~~~~')
         print('Results:')
         for ap in aps:
-            print('{:.3f}'.format(ap))
-        print('{:.3f}'.format(np.mean(aps)))
+            print('{:.4f}'.format(ap))
+        print('{:.4f}'.format(np.mean(aps)))
         print('~~~~~~~~')
         print('')
         print('--------------------------------------------------------------')
@@ -379,9 +409,9 @@ class xview(imdb):
         print('Running:\n{}'.format(cmd))
         status = subprocess.call(cmd, shell=True)
 
-    def evaluate_detections(self, all_boxes, output_dir):
+    def evaluate_detections(self, all_boxes, output_dir, rpn=False):
         self._write_voc_results_file(all_boxes)
-        self._do_python_eval(output_dir)
+        self._do_python_eval(output_dir, rpn=rpn)
         if self.config['matlab_eval']:
             self._do_matlab_eval(output_dir)
         if self.config['cleanup']:

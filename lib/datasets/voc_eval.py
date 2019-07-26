@@ -12,7 +12,7 @@ import os
 import pickle
 import numpy as np
 
-def parse_rec(filename, xview=False):
+def parse_rec(filename, xview=False, rpn=""):
   """ Parse a PASCAL VOC xml file """
   tree = ET.parse(filename)
   objects = []
@@ -21,6 +21,8 @@ def parse_rec(filename, xview=False):
     obj_struct['name'] = obj.find('name').text  
     if xview:   # Make sure to lower and strip for xView!!
         obj_struct['name'] = obj_struct['name'].lower().strip()
+    if rpn:  # If not empty string, set object name as the passed placeholder class (class[1])
+        obj_struct['name'] = rpn
     obj_struct['pose'] = obj.find('pose').text
     obj_struct['truncated'] = int(obj.find('truncated').text)
     obj_struct['difficult'] = int(obj.find('difficult').text)
@@ -75,7 +77,8 @@ def voc_eval(detpath,
              cachedir,
              ovthresh=0.5,
              use_07_metric=False,
-             xview=False):
+             xview=False,
+             rpn=""):
   """rec, prec, ap = voc_eval(detpath,
                               annopath,
                               imagesetfile,
@@ -110,12 +113,13 @@ def voc_eval(detpath,
     lines = f.readlines()
   imagenames = [x.strip() for x in lines]
 
-  if not os.path.isfile(cachefile):
+  #if not os.path.isfile(cachefile):
+  if True:  # Always write cachefile
     # load annotations
     recs = {}
     for i, imagename in enumerate(imagenames):
-      recs[imagename] = parse_rec(annopath.format(imagename), xview=xview)
-      print('Reading annotation for {:d}/{:d}'.format(i + 1, len(imagenames)))
+      recs[imagename] = parse_rec(annopath.format(imagename), xview=xview, rpn=rpn)
+      #print('Reading annotation for {:d}/{:d}'.format(i + 1, len(imagenames)))
     # save
     print('Saving cached annotations to {:s}'.format(cachefile))
     with open(cachefile, 'wb') as f:

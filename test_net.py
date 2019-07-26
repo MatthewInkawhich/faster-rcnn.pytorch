@@ -21,9 +21,6 @@ from torch.autograd import Variable
 import torch.nn as nn
 import torch.optim as optim
 import pickle
-import matplotlib
-matplotlib.use('tkagg')
-import matplotlib.pyplot as plt
 from roi_data_layer.roidb import combined_roidb
 from roi_data_layer.roibatchLoader import roibatchLoader
 from model.utils.config import cfg, cfg_from_file, cfg_from_list, get_output_dir
@@ -105,12 +102,33 @@ if __name__ == '__main__':
     print("WARNING: You have a CUDA device, so you should probably run with --cuda")
 
   np.random.seed(cfg.RNG_SEED)
+  if args.dataset == "pascal_voc":
+      args.imdb_name = "voc_2007_trainval"
+      args.imdbval_name = "voc_2007_test"
+      args.set_cfgs = ['ANCHOR_SCALES', '[8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]']
+  elif args.dataset == "pascal_voc_0712":
+      args.imdb_name = "voc_2007_trainval+voc_2012_trainval"
+      args.imdbval_name = "voc_2007_test"
+      args.set_cfgs = ['ANCHOR_SCALES', '[8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]']
+  elif args.dataset == "coco":
+      args.imdb_name = "coco_2014_train+coco_2014_valminusminival"
+      args.imdbval_name = "coco_2014_minival"
+      args.set_cfgs = ['ANCHOR_SCALES', '[4, 8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]']
+  elif args.dataset == "imagenet":
+      args.imdb_name = "imagenet_train"
+      args.imdbval_name = "imagenet_val"
+      args.set_cfgs = ['ANCHOR_SCALES', '[8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]']
+  elif args.dataset == "vg":
+      args.imdb_name = "vg_150-50-50_minitrain"
+      args.imdbval_name = "vg_150-50-50_minival"
+      args.set_cfgs = ['ANCHOR_SCALES', '[4, 8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]']
+  # xview
+  elif "xview" in args.dataset:
+      args.imdbval_name = "xview_" + args.dataset.split('_')[-1] + "_val"
+      args.set_cfgs = None
 
-  # Set imdbval_names
-  args.imdbval_name = "xview_" + args.dataset.split('_')[-1] + "_val"
-  imdbval_name_ff = "xview_ff_val"
-
-  args.set_cfgs = None
+  if 'xview' not in args.dataset:
+    args.cfg_file = "cfgs/{}_ls.yml".format(args.net) if args.large_scale else "cfgs/{}.yml".format(args.net)
 
   if args.cfg_file is not None:
     cfg_from_file(args.cfg_file)
@@ -122,16 +140,10 @@ if __name__ == '__main__':
 
   cfg.TRAIN.USE_HFLIPPED = False
   cfg.TRAIN.USE_VFLIPPED = False
-
-  # Load chipped imdb
   imdb, roidb, ratio_list, ratio_index = combined_roidb(args.imdbval_name, training=False, shift=cfg.PIXEL_SHIFT)
   imdb.competition_mode(on=True)
-  # Load ff imdb
-  imdb_ff, roidb_ff, ratio_list_ff, ratio_index_ff = combined_roidb(imdbval_name_ff, training=False, shift=cfg.PIXEL_SHIFT)
-  imdb_ff.competition_mode(on=True)
 
-  print('{:d} roidb entries (chip)'.format(len(roidb)))
-  print('{:d} roidb entries (ff)'.format(len(roidb_ff)))
+  print('{:d} roidb entries'.format(len(roidb)))
 
   input_dir = args.load_dir + "/" + args.net + "/" + args.dataset
   if not os.path.exists(input_dir):
@@ -200,26 +212,16 @@ if __name__ == '__main__':
 
   save_name = cfg.EXP_DIR
   num_images = len(imdb.image_index)
-  num_images_ff = len(imdb_ff.image_index)
-  all_boxes = [[[] for _ in xrange(num_images_ff)]
+  all_boxes = [[[] for _ in xrange(num_images)]
                for _ in xrange(imdb.num_classes)]
 
-  output_dir = get_output_dir(imdb_ff, save_name)
-
-  # full frame dataloader
-  dataset_ff = roibatchLoader(roidb_ff, ratio_list_ff, ratio_index_ff, 1, \
-                        imdb_ff.num_classes, training=False, normalize = False)
-  dataloader_ff = torch.utils.data.DataLoader(dataset_ff, batch_size=1,
-                            shuffle=False, num_workers=0,
-                            pin_memory=True)
-  data_iter_ff = iter(dataloader_ff)
-
-  # chip dataloader
+  output_dir = get_output_dir(imdb, save_name)
   dataset = roibatchLoader(roidb, ratio_list, ratio_index, 1, \
                         imdb.num_classes, training=False, normalize = False)
   dataloader = torch.utils.data.DataLoader(dataset, batch_size=1,
                             shuffle=False, num_workers=0,
                             pin_memory=True)
+
   data_iter = iter(dataloader)
 
   _t = {'im_detect': time.time(), 'misc': time.time()}
@@ -228,30 +230,18 @@ if __name__ == '__main__':
   fasterRCNN.eval()
   empty_array = np.transpose(np.array([[],[],[],[],[]]), (1,0))
 
-  # Get ff_to_chip_map
-  ff_to_chip_map = imdb.get_ff_to_chip_map(os.path.join(imdb_ff._devkit_path, 'ImageSets', 'Main', 'val.txt'))
-  print(ff_to_chip_map)
-  
-
-  exit()
-
-  for i in range(num_images_ff):
-      data_ff = next(data_iter_ff)
-      image_path_ff = data_ff[4][0]
-      print(image_path_ff)
-      exit()
-      #img_id = "img_" + image_path.split('/')[-1].split('_')[1]
-      #chip_number = image_path.split('/')[-1].split('_')[2]
-      #print(img_id, chip_number)
-
-      exit()
-
-      #with torch.no_grad():
-      #        im_data.resize_(data[0].size()).copy_(data[0])
-      #        im_info.resize_(data[1].size()).copy_(data[1])
-      #        gt_boxes.resize_(data[2].size()).copy_(data[2])
-      #        num_boxes.resize_(data[3].size()).copy_(data[3])
-
+  for i in range(num_images):
+      data = next(data_iter)
+      #print("data[0]:", data[0])
+      #print("data[1]:", data[1])
+      #print("data[2]:", data[2])
+      #print("data[3]:", data[3])
+      #exit()
+      with torch.no_grad():
+              im_data.resize_(data[0].size()).copy_(data[0])
+              im_info.resize_(data[1].size()).copy_(data[1])
+              gt_boxes.resize_(data[2].size()).copy_(data[2])
+              num_boxes.resize_(data[3].size()).copy_(data[3])
 
       det_tic = time.time()
       rois, cls_prob, bbox_pred, \

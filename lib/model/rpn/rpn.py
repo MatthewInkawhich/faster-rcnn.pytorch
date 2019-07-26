@@ -84,8 +84,9 @@ class _RPN(nn.Module):
         # proposal layer
         cfg_key = 'TRAIN' if self.training else 'TEST'
 
-        rois = self.RPN_proposal((rpn_cls_prob.data, rpn_bbox_pred.data, im_info, cfg_key))
+        rois, rpn_scores = self.RPN_proposal((rpn_cls_prob.data, rpn_bbox_pred.data, im_info, cfg_key))
         #print("rois:", rois.size())
+        #print("rpn_scores:", rpn_scores, rpn_scores.size())
 
         self.rpn_loss_cls = 0
         self.rpn_loss_box = 0
@@ -122,4 +123,4 @@ class _RPN(nn.Module):
             self.rpn_loss_box = _smooth_l1_loss(rpn_bbox_pred, rpn_bbox_targets, rpn_bbox_inside_weights,
                                                             rpn_bbox_outside_weights, sigma=3, dim=[1,2,3])
 
-        return rois, self.rpn_loss_cls, self.rpn_loss_box
+        return rois, rpn_scores, self.rpn_loss_cls, self.rpn_loss_box

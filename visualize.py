@@ -48,18 +48,19 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 ################################################
 ### Settings
 ################################################
-data_path = 'data/xView-voc-700'
-image_path = data_path + '/JPEGImages/img_104_6_rot0.png'
-dataset = 'xview_700'
+data_path = 'data/xView-voc-600'
+image_path = data_path + '/JPEGImages/img_2026_16_rot0.png'
+meta_path = 'data/xView-meta'
+dataset = 'xview_600'
 load_dir = 'models'
 net = 'res101'
-cfg_file = 'cfgs/xview/B.yml'
+cfg_file = 'cfgs/xview/600_B_16.yml'
 checksession = 1
-checkepoch = 4
-checkpoint = 12653
+checkepoch = 6
+checkpoint = 23376
 class_agnostic = False
 conf_thresh_for_det = 0.05
-vis_thresh = 0.5
+vis_thresh = 0.1
 plot_gt = True
 
 
@@ -120,7 +121,7 @@ if __name__ == '__main__':
   load_name = os.path.join(input_dir,
     'faster_rcnn_{}_{}_{}_{}.pth'.format(cfg.EXP_DIR, checksession, checkepoch, checkpoint))
 
-  classes = datasets.xview.read_classes_from_file(data_path)
+  classes = datasets.xview.read_classes_from_file(meta_path)
 
   # initilize the network here.
   if net == 'vgg16':
@@ -236,7 +237,7 @@ if __name__ == '__main__':
   # Plot ground truth if desired
   if plot_gt:
       im2show = Image.fromarray(im2show)
-      im2show = anchors.draw_gt_boxes(im2show, image_path.split('/')[-1].split('.')[0])
+      im2show = anchors.draw_gt_boxes(im2show, data_path, image_path.split('/')[-1].split('.')[0], color="blue", linesize=2)
       im2show = np.array(im2show)
 
   for j in range(1, len(classes)):
