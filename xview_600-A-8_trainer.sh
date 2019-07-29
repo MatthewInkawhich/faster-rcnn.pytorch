@@ -7,7 +7,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 python -u trainval_net.py \
 			--s 1 \
 			--disp_interval 10 \
             --save_iter 2000 \
-			--bs 6 \
+			--bs 4 \
 			--nw 4 \
 			--lr 1e-3 \
 			--lr_decay_step 3 \
