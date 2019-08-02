@@ -102,154 +102,6 @@ class Bottleneck(nn.Module):
     return out
 
 
-############################################################
-### Custom
-############################################################
-# NAI
-# Dont automatically relu the output
-class Bottleneck(nn.Module):
-  expansion = 4
-
-  def __init__(self, inplanes, planes, stride=1, downsample=None, islast=False):
-    super(Bottleneck, self).__init__()
-    self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=1, stride=stride, bias=False) # change
-    self.bn1 = nn.BatchNorm2d(planes)
-    self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, stride=1, # change
-                 padding=1, bias=False)
-    self.bn2 = nn.BatchNorm2d(planes)
-    self.conv3 = nn.Conv2d(planes, planes * 4, kernel_size=1, bias=False)
-    self.bn3 = nn.BatchNorm2d(planes * 4)
-    self.relu = nn.ReLU(inplace=True)
-    self.downsample = downsample
-    self.stride = stride
-    self.islast = islast
-
-  def forward(self, x):
-    residual = x
-
-    out = self.conv1(x)
-    out = self.bn1(out)
-    out = self.relu(out)
-
-    out = self.conv2(out)
-    out = self.bn2(out)
-    out = self.relu(out)
-
-    out = self.conv3(out)
-    out = self.bn3(out)
-
-    if self.downsample is not None:
-      residual = self.downsample(x)
-
-    out += residual
-
-    if not self.islast:
-      out = self.relu(out)
-
-    return out
-
-# NAI
-class Custom_ResNet(nn.Module):
-
-  def __init__(self, block, layers):
-    super(Custom_ResNet, self).__init__()
-    self.num_layers = len(layers) # How many layers in the short resnet
-    self.inplanes = 64
-    self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3,bias=False)
-    self.bn1 = nn.BatchNorm2d(64)
-    self.relu = nn.ReLU(inplace=True)
-    self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
-
-    self.layer1 = None
-    self.layer2 = None
-    self.layer3 = None
-    self.layer4 = None
-
-    if self.num_layers >= 1:  
-        self.layer1 = self._make_layer(block, 64, layers[0], islast=(self.num_layers==1))
-    if self.num_layers >= 2:  
-        self.layer2 = self._make_layer(block, 128, layers[1], stride=2, islast=(self.num_layers==2))
-    if self.num_layers >= 3:  
-        self.layer3 = self._make_layer(block, 256, layers[2], stride=2, islast=(self.num_layers==3))
-    if self.num_layers >= 4:  
-        self.layer4 = self._make_layer(block, 512, layers[3], stride=2, islast=(self.num_layers==4))
-
-    # Shouldnt need these in this custom resnet
-    #self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-    #self.fc = nn.Linear(512 * block.expansion, num_classes)
-
-  def _make_layer(self, block, planes, blocks, stride=1, islast=False):
-    downsample = None
-    if stride != 1 or self.inplanes != planes * block.expansion:
-        downsample = nn.Sequential(
-            conv1x1(self.inplanes, planes * block.expansion, stride),
-            nn.BatchNorm2d(planes * block.expansion),
-        )   
-    layers = []
-    layers.append(block(self.inplanes, planes, stride, downsample, islast=(islast and blocks==1)))
-    self.inplanes = planes * block.expansion
-    for cnt in range(1, blocks):
-        layers.append(block(self.inplanes, planes, islast=(islast and (cnt==blocks-1))))
-    return nn.Sequential(*layers)
-
-  def forward(self, x): 
-    x = self.conv1(x)
-    x = self.bn1(x)
-    x = self.relu(x)
-    x = self.maxpool(x)
-    if self.num_layers >= 1:  
-        x = self.layer1(x)
-    if self.num_layers >= 2:  
-        x = self.layer2(x)
-    if self.num_layers >= 3:  
-        x = self.layer3(x)
-    if self.num_layers >= 4:  
-        x = self.layer4(x)
-    #x = self.avgpool(x)
-    #x = x.view(x.size(0), -1)
-    #x = self.fc(x)
-    return x
-
-
-# NAI
-def custom_resnet101(cfg):
-  model = Custom_ResNet(CustomBottleneck, cfg)
-  return model
-
-def get_truncated_resnet101(cfg):
-  model_path = 'data/pretrained_model/resnet101_caffe.pth'
-  full_model = resnet101()
-  print("Loading pretrained weights from %s" %(model_path))
-  state_dict = torch.load(model_path)
-  resnet.load_state_dict({k:v for k,v in state_dict.items() if k in full_model.state_dict()})
-  cfg = activations_model.split("_")
-  print("cfg: ",cfg)
-  if len(cfg) == 4:
-    # Just output full model
-    small_model = resnet101()
-  elif (len(cfg)<=3) and (len(cfg)>=1):
-    small_model = custom_resnet101(cfg)
-  else:
-    exit("Invalid Resnet small model config...")
-
-  print("model built, initializing weights")
-  full_model_state = full_model.state_dict()   
-  # Initialize small model params from the full model params
-  small_net_state = {}
-  for smallkey in small_model.state_dict().keys():
-    if smallkey in full_model_state.keys():
-      small_net_state[smallkey] = full_model_state[smallkey]
-    else:
-      exit("key not found in small model initialization")
-  small_model.load_state_dict(small_net_state)
-
-  return small_model
-
-##########################################################
-##########################################################
-
-
-
 class ResNet(nn.Module):
   def __init__(self, block, layers, num_classes=1000):
     self.inplanes = 64
@@ -261,7 +113,9 @@ class ResNet(nn.Module):
     self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=0, ceil_mode=True) # change
 
     # Set strides correctly
-    if cfg.FEAT_STRIDE[0] == 8:
+    if cfg.FEAT_STRIDE[0] == 4:
+        strides = [2, 1] # CAREFUL: This is not correct, but since we only use stride 4 in intermediate models, we only use layer4 anyway.
+    elif cfg.FEAT_STRIDE[0] == 8:
         strides = [2, 1]
     elif cfg.FEAT_STRIDE[0] == 16:
         strides = [2, 2]
@@ -446,3 +300,227 @@ class resnet(_fasterRCNN):
   def _head_to_tail(self, pool5):
     fc7 = self.RCNN_top(pool5).mean(3).mean(2)
     return fc7
+
+
+
+############################################################
+### Custom
+############################################################
+# NAI
+# Dont automatically relu the output
+class CustomBottleneck(nn.Module):
+  expansion = 4
+
+  def __init__(self, inplanes, planes, stride=1, downsample=None, islast=False):
+    super(CustomBottleneck, self).__init__()
+    self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=1, stride=stride, bias=False) # change
+    self.bn1 = nn.BatchNorm2d(planes)
+    self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, stride=1, # change
+                 padding=1, bias=False)
+    self.bn2 = nn.BatchNorm2d(planes)
+    self.conv3 = nn.Conv2d(planes, planes * 4, kernel_size=1, bias=False)
+    self.bn3 = nn.BatchNorm2d(planes * 4)
+    self.relu = nn.ReLU(inplace=True)
+    self.downsample = downsample
+    self.stride = stride
+    self.islast = islast
+
+  def forward(self, x):
+    residual = x
+
+    out = self.conv1(x)
+    out = self.bn1(out)
+    out = self.relu(out)
+
+    out = self.conv2(out)
+    out = self.bn2(out)
+    out = self.relu(out)
+
+    out = self.conv3(out)
+    out = self.bn3(out)
+
+    if self.downsample is not None:
+      residual = self.downsample(x)
+
+    out += residual
+
+    if not self.islast:
+      out = self.relu(out)
+
+    return out
+
+# NAI
+class Custom_ResNet(nn.Module):
+
+  def __init__(self, block, layers):
+    super(Custom_ResNet, self).__init__()
+    self.num_layers = len(layers) # How many layers in the short resnet
+    self.inplanes = 64
+    self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3,bias=False)
+    self.bn1 = nn.BatchNorm2d(64)
+    self.relu = nn.ReLU(inplace=True)
+    self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+
+    self.layer1 = None
+    self.layer2 = None
+    self.layer3 = None
+    self.layer4 = None
+
+    if self.num_layers >= 1:  
+        self.layer1 = self._make_layer(block, 64, layers[0], islast=(self.num_layers==1))
+    if self.num_layers >= 2:  
+        self.layer2 = self._make_layer(block, 128, layers[1], stride=2, islast=(self.num_layers==2))
+    if self.num_layers >= 3:  
+        self.layer3 = self._make_layer(block, 256, layers[2], stride=2, islast=(self.num_layers==3))
+    if self.num_layers >= 4:  
+        self.layer4 = self._make_layer(block, 512, layers[3], stride=2, islast=(self.num_layers==4))
+
+    # Shouldnt need these in this custom resnet
+    #self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+    #self.fc = nn.Linear(512 * block.expansion, num_classes)
+
+  def _make_layer(self, block, planes, blocks, stride=1, islast=False):
+    downsample = None
+    if stride != 1 or self.inplanes != planes * block.expansion:
+        #print("downsample, stride:", stride)
+        downsample = nn.Sequential(
+            #conv1x1(self.inplanes, planes * block.expansion, stride),
+            #nn.BatchNorm2d(planes * block.expansion),
+            nn.Conv2d(self.inplanes, planes * block.expansion,
+                kernel_size=1, stride=stride, bias=False),
+            nn.BatchNorm2d(planes * block.expansion),
+        )   
+    layers = []
+    #layers.append(block(self.inplanes, planes, stride, downsample, islast=(islast and blocks==1)))
+    layers.append(block(self.inplanes, planes, stride, downsample, islast=False))
+    self.inplanes = planes * block.expansion
+    for cnt in range(1, blocks):
+        #layers.append(block(self.inplanes, planes, islast=(islast and (cnt==blocks-1))))
+        layers.append(block(self.inplanes, planes, islast=False))
+    return nn.Sequential(*layers)
+
+  def forward(self, x): 
+    x = self.conv1(x)
+    x = self.bn1(x)
+    x = self.relu(x)
+    x = self.maxpool(x)
+    if self.num_layers >= 1:  
+        x = self.layer1(x)
+    if self.num_layers >= 2:  
+        x = self.layer2(x)
+    if self.num_layers >= 3:  
+        x = self.layer3(x)
+    if self.num_layers >= 4:  
+        x = self.layer4(x)
+    #x = self.avgpool(x)
+    #x = x.view(x.size(0), -1)
+    #x = self.fc(x)
+    return x
+
+
+class myresnet(_fasterRCNN):
+  def __init__(self, classes, layer_cfg, num_layers=101, pretrained=False, class_agnostic=False):
+    self.model_path = 'data/pretrained_model/resnet101_caffe.pth'
+    self.dout_base_model = 1024
+    self.pretrained = pretrained
+    self.class_agnostic = class_agnostic
+    self.layer_cfg = layer_cfg
+
+    _fasterRCNN.__init__(self, classes, class_agnostic)
+
+  def _init_modules(self):
+    # Build custom resnet
+    resnet_full = resnet101()
+    resnet = Custom_ResNet(CustomBottleneck, self.layer_cfg)
+
+    # Load pretrained weights into custom resnet
+    if self.pretrained == True:
+      print("Loading pretrained weights from %s" %(self.model_path))
+      state_dict = torch.load(self.model_path)
+      resnet.load_state_dict({k:v for k,v in state_dict.items() if k in resnet.state_dict()})
+
+    # Build rcnn-specific modules
+    train_mode_list = []
+    base_layers = [resnet.conv1, resnet.bn1, resnet.relu, resnet.maxpool]
+    if len(self.layer_cfg) >= 1:
+        base_layers.append(resnet.layer1)
+    if len(self.layer_cfg) >= 2:
+        base_layers.append(resnet.layer2)
+    if len(self.layer_cfg) == 3:
+        base_layers.append(resnet.layer3)
+    if len(self.layer_cfg) > 3:
+        print("Error: layer_cfg supports a max length of 3 (only dig into first 3 'layers')")
+        exit()
+
+    # Calculate depth dimension of feature map of RCNN_base_tmp
+    self.RCNN_base_tmp = nn.Sequential(*base_layers)
+    #for p in self.RCNN_base_tmp.parameters(): p.requires_grad=False
+    dummy_in = torch.rand((1, 3, 600, 600), dtype=torch.float32)
+    dummy_out = self.RCNN_base_tmp(dummy_in)
+    print("dummy_out:", dummy_out.size())
+    self.RCNN_base_tmp = None # Leave this here otherwise PyTorch autograd will take shortcut and optimize RCNN_base_tmp params instead of RCNN_base
+    # Create final conv1x1 layer to make set dimension that RCNN_top will expect
+    self.depth_regulizer = nn.Conv2d(in_channels=dummy_out.size()[1], out_channels=1024, kernel_size=1)
+    base_layers.append(self.depth_regulizer)
+    # Create full RCNN_base module
+    self.RCNN_base = nn.Sequential(*base_layers)
+
+    #self.RCNN_base = nn.Sequential(resnet.conv1, resnet.bn1,resnet.relu,
+    #  resnet.maxpool,resnet.layer1,resnet.layer2,resnet.layer3)
+
+    self.RCNN_top = nn.Sequential(resnet_full.layer4)
+
+    self.RCNN_cls_score = nn.Linear(2048, self.n_classes)
+    if self.class_agnostic:
+      self.RCNN_bbox_pred = nn.Linear(2048, 4)
+    else:
+      self.RCNN_bbox_pred = nn.Linear(2048, 4 * self.n_classes)
+
+
+    # Fix blocks
+    for p in self.RCNN_base[0].parameters(): p.requires_grad=False
+    for p in self.RCNN_base[1].parameters(): p.requires_grad=False
+
+    #assert (0 <= cfg.RESNET.FIXED_BLOCKS < 4)
+    #if cfg.RESNET.FIXED_BLOCKS >= 3:
+    #  for p in self.RCNN_base[6].parameters(): p.requires_grad=False
+    #if cfg.RESNET.FIXED_BLOCKS >= 2:
+    #  for p in self.RCNN_base[5].parameters(): p.requires_grad=False
+    #if cfg.RESNET.FIXED_BLOCKS >= 1:
+    #  for p in self.RCNN_base[4].parameters(): p.requires_grad=False
+
+    def set_bn_fix(m):
+      classname = m.__class__.__name__
+      if classname.find('BatchNorm') != -1:
+        for p in m.parameters(): p.requires_grad=False
+
+    self.RCNN_base.apply(set_bn_fix)
+    self.RCNN_top.apply(set_bn_fix)
+
+  def train(self, mode=True):
+    # Override train so that the training mode is set as we want
+    nn.Module.train(self, mode)
+    if mode:
+      # Set fixed blocks to be in eval mode
+      self.RCNN_base.eval()
+      # Make all bottleneck 'layers' trainable
+      for k in range(4, 4+1+len(self.layer_cfg)):
+          self.RCNN_base[k].train()
+
+      def set_bn_eval(m):
+        classname = m.__class__.__name__
+        if classname.find('BatchNorm') != -1:
+          m.eval()
+
+      self.RCNN_base.apply(set_bn_eval)
+      self.RCNN_top.apply(set_bn_eval)
+
+  def _head_to_tail(self, pool5):
+    fc7 = self.RCNN_top(pool5).mean(3).mean(2)
+    return fc7
+
+##########################################################
+##########################################################
+
+
+

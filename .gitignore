@@ -206,3 +206,4 @@ lib/pycocotools/_mask.c
 logs
 models
 output
+.n*

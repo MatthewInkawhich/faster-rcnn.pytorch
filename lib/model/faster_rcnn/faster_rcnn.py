@@ -163,11 +163,11 @@ class _fasterRCNN(nn.Module):
         self._init_modules()
         self._init_weights()
 
-    def forward_to_anchor_map(self, im_data):
-        # feed image data to base model to obtain base feature map
-        base_feat = self.RCNN_base(im_data)
-        # return feature map after convrelu layer
-        rpn_conv1 = F.relu(self.rep_RPN_Conv(base_feat), inplace=True)
-        # get rpn classification score
-        rpn_cls_score = self.rep_RPN_cls_score(rpn_conv1)
-        return rpn_cls_score
+    #def forward_to_anchor_map(self, im_data):
+    #    # feed image data to base model to obtain base feature map
+    #    base_feat = self.RCNN_base(im_data)
+    #    # return feature map after convrelu layer
+    #    rpn_conv1 = F.relu(self.rep_RPN_Conv(base_feat), inplace=True)
+    #    # get rpn classification score
+    #    rpn_cls_score = self.rep_RPN_cls_score(rpn_conv1)
+    #    return rpn_cls_score

@@ -54,13 +54,14 @@ meta_path = 'data/xView-meta'
 dataset = 'xview_600'
 load_dir = 'models'
 net = 'res101'
-cfg_file = 'cfgs/xview/600_B_16.yml'
+cfg_file = 'cfgs/xview/600_B_8.yml'
 checksession = 1
 checkepoch = 6
-checkpoint = 23376
+#checkpoint = 23376
+checkpoint = 8000
 class_agnostic = False
 conf_thresh_for_det = 0.05
-vis_thresh = 0.1
+vis_thresh = 0.3
 plot_gt = True
 
 
@@ -261,7 +262,16 @@ if __name__ == '__main__':
 
 
 
+# Plot/Save image
+image_id = image_path.split('/')[-1].split('.')[0].split('_')[1]
+chip_id = image_path.split('/')[-1].split('.')[0].split('_')[2]
+save_name = image_path.split('/')[-1].split('.')[0] + '.pdf'
+model_id = cfg_file.split('/')[-1].split('.')[0]
+
+plt.axis('off')
+plt.title('Img: {}-{}   Model: {}'.format(image_id, chip_id, model_id))
 plt.imshow(im2show)
+plt.savefig('/raid/inkawhmj/WORK/xview_project/images/' + save_name)
 plt.show()
 
 

@@ -14,6 +14,7 @@
 import math
 
 
+count = 0
 
 #############################################################
 ### FUNCTIONS
@@ -51,15 +52,16 @@ def outFromIn(conv, layerIn):
   start_out = start_in + ((k-1)/2 - pL)*j_in
   return n_out, j_out, r_out, start_out
   
-
 def printLayer(layer):
-  print("\n\t n features: %s \n \t jump: %s \n \t receptive size: %s \t start: %s " % (layer[0], layer[1], layer[2], layer[3]))
+    global count
+    print("\n\tcount:%s \n \t  num features: %s \n \t jump: %s \n \t receptive size: %s \t start: %s " % (count, layer[0], layer[1], layer[2], layer[3]))
+    count += 1
  
 
 #############################################################
 ### MAIN
 #############################################################
-imsize = 700
+imsize = 600
 convnet = readModelFromFile('./res101')
 layerInfos = []
 

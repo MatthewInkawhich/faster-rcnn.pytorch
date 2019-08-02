@@ -31,7 +31,7 @@ from model.utils.net_utils import weights_normal_init, save_net, load_net, \
       adjust_learning_rate, save_checkpoint, clip_gradient
 
 from model.faster_rcnn.vgg16 import vgg16
-from model.faster_rcnn.resnet import resnet
+from model.faster_rcnn.resnet import resnet, myresnet
 
 def parse_args():
   """
@@ -255,6 +255,9 @@ if __name__ == '__main__':
     fasterRCNN = resnet(imdb.classes, 50, pretrained=True, class_agnostic=args.class_agnostic)
   elif args.net == 'res152':
     fasterRCNN = resnet(imdb.classes, 152, pretrained=True, class_agnostic=args.class_agnostic)
+  elif args.net == 'res101_custom':
+    # Orig for ResNet-101: [3, 4, 23]
+    fasterRCNN = myresnet(imdb.classes, [3, 1], 101, pretrained=True, class_agnostic=args.class_agnostic)
   else:
     print("network is not defined")
     pdb.set_trace()
@@ -262,7 +265,6 @@ if __name__ == '__main__':
   fasterRCNN.create_architecture()
 
   #print(fasterRCNN.RCNN_base)
-  #exit()
 
   lr = cfg.TRAIN.LEARNING_RATE
   lr = args.lr
@@ -272,6 +274,7 @@ if __name__ == '__main__':
   params = []
   for key, value in dict(fasterRCNN.named_parameters()).items():
     if value.requires_grad:
+      print("parameter key:", key)
       if 'bias' in key:
         params += [{'params':[value],'lr':lr*(cfg.TRAIN.DOUBLE_BIAS + 1), \
                 'weight_decay': cfg.TRAIN.BIAS_DECAY and cfg.TRAIN.WEIGHT_DECAY or 0}]
