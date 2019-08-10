@@ -31,7 +31,7 @@ from model.utils.net_utils import weights_normal_init, save_net, load_net, \
       adjust_learning_rate, save_checkpoint, clip_gradient
 
 from model.faster_rcnn.vgg16 import vgg16
-from model.faster_rcnn.resnet import resnet, myresnet
+from model.faster_rcnn.resnet import resnet, myresnet, myresnet2
 
 def parse_args():
   """
@@ -82,6 +82,7 @@ def parse_args():
                       help='whether perform class_agnostic bbox regression',
                       action='store_true')
   parser.add_argument('--cfg_file', dest='cfg_file', help='config file', default='./cfg/xview/A.yml', type=str)
+  parser.add_argument('--layer_cfg', dest='layer_cfg', default='[3,4,23]', type=str)
 
 
 # config optimization
@@ -164,6 +165,9 @@ if __name__ == '__main__':
 
   print('Called with args:')
   print(args)
+
+  layer_cfg = list(map(int, args.layer_cfg.strip('[]').split(',')))
+  print("layer_cfg:", layer_cfg)
 
   if args.dataset == "pascal_voc":
       args.imdb_name = "voc_2007_trainval"
@@ -257,7 +261,9 @@ if __name__ == '__main__':
     fasterRCNN = resnet(imdb.classes, 152, pretrained=True, class_agnostic=args.class_agnostic)
   elif args.net == 'res101_custom':
     # Orig for ResNet-101: [3, 4, 23]
-    fasterRCNN = myresnet(imdb.classes, [3, 1], 101, pretrained=True, class_agnostic=args.class_agnostic)
+    fasterRCNN = myresnet(imdb.classes, layer_cfg, 101, pretrained=True, class_agnostic=args.class_agnostic)
+  elif args.net == 'res101_custom2':
+    fasterRCNN = myresnet2(imdb.classes, layer_cfg, 101, pretrained=True, class_agnostic=args.class_agnostic)
   else:
     print("network is not defined")
     pdb.set_trace()

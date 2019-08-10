@@ -17,6 +17,8 @@ import pdb
 import time
 import csv
 import cv2
+from PIL import Image
+import xml.etree.ElementTree as ET
 import itertools
 import torch
 from torch.autograd import Variable
@@ -33,9 +35,9 @@ from model.rpn.bbox_transform import clip_boxes
 # from model.nms.nms_wrapper import nms
 from model.roi_layers import nms
 from model.rpn.bbox_transform import bbox_transform_inv
-from model.utils.net_utils import save_net, load_net, vis_detections
+from model.utils.net_utils import save_net, load_net, vis_detections, vis_color_coded
 from model.faster_rcnn.vgg16 import vgg16
-from model.faster_rcnn.resnet import resnet, myresnet
+from model.faster_rcnn.resnet import resnet, myresnet, myresnet2
 
 import pdb
 
@@ -68,6 +70,35 @@ def bb_intersection_over_union(boxA, boxB):
      
     # return the intersection over union value
     return iou
+
+
+def _load_gt_boxes(data_path, index, class_to_ind):
+    """
+    Load image and bounding boxes info from XML file in the PASCAL VOC
+    format.
+    """
+    filename = os.path.join(data_path, 'Annotations', index + '.xml')
+    tree = ET.parse(filename)
+    objs = tree.findall('object')
+    num_objs = len(objs)
+
+    boxes = np.zeros((num_objs, 5), dtype=np.uint32)
+    #gt_classes = np.zeros((num_objs), dtype=np.int32)
+    
+    # Load object bounding boxes into a data frame.
+    for ix, obj in enumerate(objs):
+        bbox = obj.find('bndbox')
+        # Make pixel indexes 0-based
+        x1 = float(bbox.find('xmin').text)
+        y1 = float(bbox.find('ymin').text)
+        x2 = float(bbox.find('xmax').text)
+        y2 = float(bbox.find('ymax').text)
+
+        cls = class_to_ind[obj.find('name').text.lower().strip()]
+        boxes[ix, :] = [x1, y1, x2, y2, cls]
+        #gt_classes[ix] = cls
+
+    return boxes #, gt_classes
 
 
 def parse_args():
@@ -120,6 +151,7 @@ def parse_args():
   parser.add_argument('--iou_thresh', dest='iou_thresh',
                       help='IoU threshold to remove duplicate',
                       type=float, default=0.8)
+  parser.add_argument('--layer_cfg', dest='layer_cfg', default='[3,4,23]', type=str)
   args = parser.parse_args()
   return args
 
@@ -127,7 +159,7 @@ lr = cfg.TRAIN.LEARNING_RATE
 momentum = cfg.TRAIN.MOMENTUM
 weight_decay = cfg.TRAIN.WEIGHT_DECAY
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
+vis_thresh = 0.6
 
 # Counters and sums
 total_ff_time = 0
@@ -140,6 +172,9 @@ if __name__ == '__main__':
 
   print('Called with args:')
   print(args)
+
+  layer_cfg = list(map(int, args.layer_cfg.strip('[]').split(',')))
+  print("layer_cfg:", layer_cfg)
 
   if torch.cuda.is_available() and not args.cuda:
     print("WARNING: You have a CUDA device, so you should probably run with --cuda")
@@ -189,7 +224,9 @@ if __name__ == '__main__':
   elif args.net == 'res152':
     fasterRCNN = resnet(imdb.classes, 152, pretrained=False, class_agnostic=args.class_agnostic)
   elif args.net == 'res101_custom':
-    fasterRCNN = myresnet(imdb.classes, [3, 4, 12], 101, pretrained=False, class_agnostic=args.class_agnostic)
+    fasterRCNN = myresnet(imdb.classes, layer_cfg, 101, pretrained=False, class_agnostic=args.class_agnostic)
+  elif args.net == 'res101_custom2':
+    fasterRCNN = myresnet2(imdb.classes, layer_cfg, 101, pretrained=False, class_agnostic=args.class_agnostic)
   else:
     print("network is not defined")
     pdb.set_trace()
@@ -205,8 +242,10 @@ if __name__ == '__main__':
 
   if args.mGPUs:
     fasterRCNN = nn.DataParallel(fasterRCNN)
-
   print('load model successfully!')
+
+  class_to_ind = dict(zip(imdb.classes, range(len(imdb.classes))))
+
   # initilize the tensor holder here.
   im_data = torch.FloatTensor(1)
   im_info = torch.FloatTensor(1)
@@ -283,15 +322,21 @@ if __name__ == '__main__':
 
   # Iterate over all ff images
   for i in range(num_images_ff):
+      # temp changes for chip size vis
       data_ff = next(data_iter_ff)
       image_path_ff = data_ff[4][0]
       print(image_path_ff)
       img_id_ff = image_path_ff.split('/')[-1].split('.')[0]
+      #img_id_ff = 'img_2032'
       print(img_id_ff)
+      gt_boxes_all = _load_gt_boxes('data/xView-voc-ff', img_id_ff, class_to_ind)
       ff_id_num = img_id_ff.split('_')[-1]
       if vis:
-          im = cv2.imread(imdb_ff.image_path_at(i, tif=True))
+          #im = cv2.imread(imdb_ff.image_path_at(i, tif=True))
+          #im = cv2.imread('data/xView-meta/train_images/' + ff_id_num + '.tif')
+          im = np.array(Image.open('data/xView-meta/train_images/' + ff_id_num + '.tif'))
           im2show = np.copy(im)
+
 
       # Iterate over all chips associated with current ff image
       ff_det_tic = time.time()
@@ -316,7 +361,7 @@ if __name__ == '__main__':
           assert (chip_path == data[4][0]), "Chip paths do not match!"
 
           # Fetch offsets associated with this chip
-          x_offset, y_offset = chip_offsets[('img_'+ff_id_num, chip_num)]
+          x_offset, y_offset = chip_offsets[(img_id_ff, chip_num)]
 
           # Load data into holder tensors
           with torch.no_grad():
@@ -470,7 +515,8 @@ if __name__ == '__main__':
 
           # If vis flag is set, plot boxes on ff
           if vis:
-              im2show = vis_detections(im2show, imdb.classes[j], cls_dets.cpu().numpy(), 0.3)
+              #im2show = vis_detections(im2show, imdb.classes[j], cls_dets.cpu().numpy(), vis_thresh)
+              im2show = vis_color_coded(im2show, j, imdb.classes[j], cls_dets.cpu().numpy(), gt_boxes_all, thresh=vis_thresh, iou_thresh=0.5, text=False)
 
 #          ### Manual IoU-based duplicate filter
 #          # Iterate over all pairs or boxes
@@ -517,8 +563,10 @@ if __name__ == '__main__':
 
       # If vis, show ff with all boxes
       if vis:
-          cv2.imwrite('result.png', im2show)
-          plt.imshow(im2show[:,:,::-1])
+          #cv2.imwrite('result.png', im2show)
+          #plt.imshow(im2show[617:1630, 718:1960, :])
+          plt.imshow(im2show[1900:2950, 0:1000, :])
+          plt.savefig('result.pdf')
           plt.show()
           pdb.set_trace()
 

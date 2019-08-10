@@ -39,7 +39,7 @@ from model.roi_layers import nms
 from model.rpn.bbox_transform import bbox_transform_inv
 from model.utils.net_utils import save_net, load_net, vis_detections
 from model.faster_rcnn.vgg16 import vgg16
-from model.faster_rcnn.resnet import resnet
+from model.faster_rcnn.resnet import resnet, myresnet, myresnet2
 
 import pdb
 
@@ -124,6 +124,7 @@ def parse_args():
   parser.add_argument('--iou_thresh', dest='iou_thresh',
                       help='IoU threshold to remove duplicate',
                       type=float, default=0.8)
+  parser.add_argument('--layer_cfg', dest='layer_cfg', default='[3,4,23]', type=str)
   args = parser.parse_args()
   return args
 
@@ -144,6 +145,9 @@ if __name__ == '__main__':
 
   print('Called with args:')
   print(args)
+
+  layer_cfg = list(map(int, args.layer_cfg.strip('[]').split(',')))
+  print("layer_cfg:", layer_cfg)
 
   if torch.cuda.is_available() and not args.cuda:
     print("WARNING: You have a CUDA device, so you should probably run with --cuda")
@@ -192,6 +196,10 @@ if __name__ == '__main__':
     fasterRCNN = resnet(imdb.classes, 50, pretrained=False, class_agnostic=args.class_agnostic)
   elif args.net == 'res152':
     fasterRCNN = resnet(imdb.classes, 152, pretrained=False, class_agnostic=args.class_agnostic)
+  elif args.net == 'res101_custom':
+    fasterRCNN = myresnet(imdb.classes, layer_cfg, 101, pretrained=False, class_agnostic=args.class_agnostic)
+  elif args.net == 'res101_custom2':
+    fasterRCNN = myresnet2(imdb.classes, layer_cfg, 101, pretrained=False, class_agnostic=args.class_agnostic)
   else:
     print("network is not defined")
     pdb.set_trace()

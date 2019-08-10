@@ -55,11 +55,73 @@ def vis_detections(im, class_name, dets, thresh=0.8):
         bbox = tuple(int(np.round(x)) for x in dets[i, :4])
         score = dets[i, -1]
         if score > thresh:
-            cv2.rectangle(im, bbox[0:2], bbox[2:4], (0, 204, 0), 2)
+            cv2.rectangle(im, bbox[0:2], bbox[2:4], (255, 130, 0), 2)
             #cv2.putText(im, '%s: %.3f' % (class_name, score), (bbox[0], bbox[1] + 15), cv2.FONT_HERSHEY_PLAIN, 1.0, (255, 0, 0), thickness=1)
-            cv2.putText(im, '%s' % (class_name), (bbox[0], bbox[1] + 15), cv2.FONT_HERSHEY_PLAIN, 1.0, (0, 255, 0), thickness=1)
+            cv2.putText(im, '%s' % (class_name), (bbox[0], bbox[1] + 15), cv2.FONT_HERSHEY_PLAIN, 1, (180, 255, 0), thickness=1)
     return im
 
+
+# Compute IoU function
+def bb_intersection_over_union(boxA, boxB):
+    # determine the (x, y)-coordinates of the intersection rectangle
+    xA = max(boxA[0], boxB[0])
+    yA = max(boxA[1], boxB[1])
+    xB = min(boxA[2], boxB[2])
+    yB = min(boxA[3], boxB[3])
+     
+    # compute the area of intersection rectangle
+    interArea = max(0, xB - xA + 1) * max(0, yB - yA + 1)
+     
+    # compute the area of both the prediction and ground-truth
+    # rectangles
+    boxAArea = (boxA[2] - boxA[0] + 1) * (boxA[3] - boxA[1] + 1)
+    boxBArea = (boxB[2] - boxB[0] + 1) * (boxB[3] - boxB[1] + 1)
+     
+    # compute the intersection over union by taking the intersection
+    # area and dividing it by the sum of prediction + ground-truth
+    # areas - the interesection area
+    iou = interArea / float(boxAArea + boxBArea - interArea)
+     
+    # return the intersection over union value
+    return iou
+
+
+# Assign colors for correct detection & correct classification, correct detection & false classification, and false detection
+def vis_color_coded(im, class_pred, class_name, dets, gt_boxes, thresh=0.8, iou_thresh=0.7, text=True):
+    for i in range(dets.shape[0]):
+        # Split pred box and pred score
+        bbox = tuple(int(np.round(x)) for x in dets[i, :4])
+        score = dets[i, -1]
+        # Make sure confidence is above theshold
+        if score > thresh:
+            # Calculate the maximum iou between current prediction and all gt_boxes
+            max_iou = 0
+            for gt in gt_boxes:
+                gt_bbox = gt[:4]
+                gt_cls = gt[4]
+                # Compute iou and compare against max_iou
+                iou = bb_intersection_over_union(bbox, gt_bbox)
+                if iou > max_iou:
+                    max_iou = iou
+                    max_iou_class = gt_cls
+            
+            if max_iou >= iou_thresh:
+                # The detection is correct
+                if class_pred == max_iou_class:
+                    # The class prediction is correct
+                    box_color = (0, 255, 0) # GREEN
+                else:
+                    # The class prediction is incorrect
+                    box_color = (255, 255, 0)  # YELLOW
+            else:
+                # The detection is not valid, color red
+                box_color = (255, 0, 0)  # RED
+
+            cv2.rectangle(im, bbox[0:2], bbox[2:4], box_color, 2)
+            #cv2.putText(im, '%s: %.3f' % (class_name, score), (bbox[0], bbox[1] + 15), cv2.FONT_HERSHEY_PLAIN, 1.0, (255, 0, 0), thickness=1)
+            if text:
+                cv2.putText(im, '%s' % (class_name), (bbox[0], bbox[1] + 15), cv2.FONT_HERSHEY_PLAIN, 4.0, box_color, thickness=4)
+    return im
 
 def adjust_learning_rate(optimizer, decay=0.1):
     """Sets the learning rate to the initial LR decayed by 0.5 every 20 epochs"""

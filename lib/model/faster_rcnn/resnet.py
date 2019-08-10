@@ -344,8 +344,9 @@ class CustomBottleneck(nn.Module):
 
     out += residual
 
-    if not self.islast:
-      out = self.relu(out)
+    #if not self.islast:
+        
+    out = self.relu(out)
 
     return out
 
@@ -418,6 +419,8 @@ class Custom_ResNet(nn.Module):
     return x
 
 
+# Strategy 1: Force RCNN_base output feature map to have depth=1024 like original. 
+# Use 1x1 conv to do this.
 class myresnet(_fasterRCNN):
   def __init__(self, classes, layer_cfg, num_layers=101, pretrained=False, class_agnostic=False):
     self.model_path = 'data/pretrained_model/resnet101_caffe.pth'
@@ -454,7 +457,6 @@ class myresnet(_fasterRCNN):
 
     # Calculate depth dimension of feature map of RCNN_base_tmp
     self.RCNN_base_tmp = nn.Sequential(*base_layers)
-    #for p in self.RCNN_base_tmp.parameters(): p.requires_grad=False
     dummy_in = torch.rand((1, 3, 600, 600), dtype=torch.float32)
     dummy_out = self.RCNN_base_tmp(dummy_in)
     print("dummy_out:", dummy_out.size())
@@ -487,7 +489,7 @@ class myresnet(_fasterRCNN):
     #if cfg.RESNET.FIXED_BLOCKS >= 2:
     #  for p in self.RCNN_base[5].parameters(): p.requires_grad=False
     #if cfg.RESNET.FIXED_BLOCKS >= 1:
-    #  for p in self.RCNN_base[4].parameters(): p.requires_grad=False
+    #for p in self.RCNN_base[4].parameters(): p.requires_grad=False
 
     def set_bn_fix(m):
       classname = m.__class__.__name__
@@ -518,6 +520,140 @@ class myresnet(_fasterRCNN):
   def _head_to_tail(self, pool5):
     fc7 = self.RCNN_top(pool5).mean(3).mean(2)
     return fc7
+
+
+
+# Strategy 2: Use natural feature map depth of RCNN_base. Force rest of model 
+# (e.g. RPN, layer4) to accept natural feat map depth.
+class myresnet2(_fasterRCNN):
+  def __init__(self, classes, layer_cfg, num_layers=101, pretrained=False, class_agnostic=False):
+    self.model_path = 'data/pretrained_model/resnet101_caffe.pth'
+    if len(layer_cfg) == 2:
+        self.dout_base_model = 512
+    elif len(layer_cfg) == 3:
+        self.dout_base_model = 1024
+    else:
+        print("myresnet2 constructor: layer cfg must have length of either 2 or 3")
+        exit()
+    self.pretrained = pretrained
+    self.class_agnostic = class_agnostic
+    self.layer_cfg = layer_cfg
+
+    _fasterRCNN.__init__(self, classes, class_agnostic)
+
+
+  def _make_layer(self, block, inplanes, planes, blocks, stride=1, islast=False):
+    downsample = None
+    if stride != 1 or inplanes != planes * block.expansion:
+        #print("downsample, stride:", stride)
+        downsample = nn.Sequential(
+            #conv1x1(self.inplanes, planes * block.expansion, stride),
+            #nn.BatchNorm2d(planes * block.expansion),
+            nn.Conv2d(inplanes, planes * block.expansion,
+                kernel_size=1, stride=stride, bias=False),
+            nn.BatchNorm2d(planes * block.expansion),
+        )   
+    layers = []
+    #layers.append(block(self.inplanes, planes, stride, downsample, islast=(islast and blocks==1)))
+    layers.append(block(inplanes, planes, stride, downsample, islast=False))
+    inplanes = planes * block.expansion
+    for cnt in range(1, blocks):
+        #layers.append(block(self.inplanes, planes, islast=(islast and (cnt==blocks-1))))
+        layers.append(block(inplanes, planes, islast=False))
+    return nn.Sequential(*layers)
+
+
+  def _init_modules(self):
+    # Build custom resnet
+    resnet = Custom_ResNet(CustomBottleneck, self.layer_cfg)
+
+    # Load pretrained weights into custom resnet
+    if self.pretrained == True:
+      print("Loading pretrained weights from %s" %(self.model_path))
+      state_dict = torch.load(self.model_path)
+      resnet.load_state_dict({k:v for k,v in state_dict.items() if k in resnet.state_dict()})
+
+    # Build rcnn-specific modules
+    train_mode_list = []
+    base_layers = [resnet.conv1, resnet.bn1, resnet.relu, resnet.maxpool]
+    if len(self.layer_cfg) >= 1:
+        base_layers.append(resnet.layer1)
+    if len(self.layer_cfg) >= 2:
+        base_layers.append(resnet.layer2)
+    if len(self.layer_cfg) == 3:
+        base_layers.append(resnet.layer3)
+    if len(self.layer_cfg) > 3:
+        print("Error: layer_cfg supports a max length of 3 (only dig into first 3 'layers')")
+        exit()
+
+    # Calculate depth dimension of feature map of RCNN_base_tmp
+    self.RCNN_base = nn.Sequential(*base_layers)
+    dummy_in = torch.rand((1, 3, 600, 600), dtype=torch.float32)
+    # Find new dout_base_model
+    with torch.no_grad():
+        dummy_out = self.RCNN_base(dummy_in)
+    print("dummy_out:", dummy_out.size())
+    assert dummy_out.size()[1] == self.dout_base_model, "RCNN_base dummy output featmap's depth does NOT match self.dout_base_model!"
+
+    # Create new RCNN_top
+    self.layer4 = self._make_layer(CustomBottleneck, self.dout_base_model, self.dout_base_model // 2, 3, stride=2, islast=False)
+    self.RCNN_top = nn.Sequential(self.layer4)
+
+    # Create linear layers
+    self.RCNN_cls_score = nn.Linear(self.dout_base_model*2, self.n_classes)
+    if self.class_agnostic:
+      self.RCNN_bbox_pred = nn.Linear(self.dout_base_model*2, 4)
+    else:
+      self.RCNN_bbox_pred = nn.Linear(self.dout_base_model*2, 4 * self.n_classes)
+
+
+    # Fix blocks
+    for p in self.RCNN_base[0].parameters(): p.requires_grad=False
+    for p in self.RCNN_base[1].parameters(): p.requires_grad=False
+
+    #assert (0 <= cfg.RESNET.FIXED_BLOCKS < 4)
+    #if cfg.RESNET.FIXED_BLOCKS >= 3:
+    #  for p in self.RCNN_base[6].parameters(): p.requires_grad=False
+    #if cfg.RESNET.FIXED_BLOCKS >= 2:
+    #  for p in self.RCNN_base[5].parameters(): p.requires_grad=False
+    #if cfg.RESNET.FIXED_BLOCKS >= 1:
+    for p in self.RCNN_base[4].parameters(): p.requires_grad=False
+
+    def set_bn_fix(m):
+      classname = m.__class__.__name__
+      if classname.find('BatchNorm') != -1:
+        for p in m.parameters(): p.requires_grad=False
+
+    self.RCNN_base.apply(set_bn_fix)
+    self.RCNN_top.apply(set_bn_fix)
+
+  def train(self, mode=True):
+    # Override train so that the training mode is set as we want
+    nn.Module.train(self, mode)
+    if mode:
+      # Set fixed blocks to be in eval mode
+      self.RCNN_base.eval()
+      if len(self.layer_cfg) == 2:
+        self.RCNN_base[5].train()
+      elif len(self.layer_cfg) == 3:
+        self.RCNN_base[5].train()
+        self.RCNN_base[6].train()
+      else:
+        print("myresnet2.train: layer_cfg should contain either 2 or 3 elements")
+        exit()
+
+      def set_bn_eval(m):
+        classname = m.__class__.__name__
+        if classname.find('BatchNorm') != -1:
+          m.eval()
+
+      self.RCNN_base.apply(set_bn_eval)
+      self.RCNN_top.apply(set_bn_eval)
+
+  def _head_to_tail(self, pool5):
+    fc7 = self.RCNN_top(pool5).mean(3).mean(2)
+    return fc7
+
 
 ##########################################################
 ##########################################################

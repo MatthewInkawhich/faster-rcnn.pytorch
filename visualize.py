@@ -15,6 +15,7 @@ import argparse
 import pprint
 import pdb
 from PIL import Image, ImageDraw
+import xml.etree.ElementTree as ET
 import time
 import cv2
 import matplotlib
@@ -36,7 +37,7 @@ from model.rpn.bbox_transform import clip_boxes
 # from model.nms.nms_wrapper import nms
 from model.roi_layers import nms
 from model.rpn.bbox_transform import bbox_transform_inv
-from model.utils.net_utils import save_net, load_net, vis_detections
+from model.utils.net_utils import save_net, load_net, vis_detections, vis_color_coded
 from model.utils.blob import im_list_to_blob
 from model.faster_rcnn.vgg16 import vgg16
 from model.faster_rcnn.resnet import resnet
@@ -49,20 +50,42 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 ### Settings
 ################################################
 data_path = 'data/xView-voc-600'
-image_path = data_path + '/JPEGImages/img_2026_16_rot0.png'
+
+#image_path = data_path + '/JPEGImages/img_492_8_rot0.png'
+#image_path = data_path + '/JPEGImages/img_322_30_rot0.png'  # stride
+#image_path = data_path + '/JPEGImages/img_1397_25_rot0.png'  # stride
+#image_path = data_path + '/JPEGImages/img_237_28_rot0.png'  # orchard sparse
+#image_path = data_path + '/JPEGImages/img_2499_16_rot0.png'  # buildings blend in
+#image_path = data_path + '/JPEGImages/img_2026_16_rot0.png'  # housing development
+#image_path = data_path + '/JPEGImages/img_1175_33_rot0.png'   # scale
+#image_path = data_path + '/JPEGImages/img_546_29_rot0.png'  # scale
+#image_path = data_path + '/JPEGImages/img_763_19_rot0.png'
+#image_path = data_path + '/JPEGImages/img_110_16_rot0.png'
+#image_path = data_path + '/JPEGImages/img_1127_16_rot0.png'
+#image_path = data_path + '/JPEGImages/img_1444_51_rot0.png'
+#image_path = data_path + '/JPEGImages/img_2009_38_rot0.png'
+image_path = data_path + '/JPEGImages/img_110_16_rot0.png'
+
+cfg_file = 'cfgs/xview/600_A_8.yml'
 meta_path = 'data/xView-meta'
 dataset = 'xview_600'
 load_dir = 'models'
 net = 'res101'
-cfg_file = 'cfgs/xview/600_B_8.yml'
+#cfg_file = 'cfgs/xview/600_A_8.yml'
 checksession = 1
 checkepoch = 6
 #checkpoint = 23376
-checkpoint = 8000
+#checkpoint = 8000
+checkpoint = 46754
 class_agnostic = False
-conf_thresh_for_det = 0.05
-vis_thresh = 0.3
-plot_gt = True
+#conf_thresh_for_det = 0.05
+vis_thresh = 0.4
+conf_thresh_for_det = vis_thresh
+iou_thresh = 0.5
+text = False
+plot_gt = False
+save = True
+
 
 
 
@@ -100,8 +123,36 @@ def _get_image_blob(im):
 
   # Create a blob to hold the input images
   blob = im_list_to_blob(processed_ims)
-
   return blob, np.array(im_scale_factors)
+
+
+def _load_gt_boxes(data_path, index, class_to_ind):
+    """
+    Load image and bounding boxes info from XML file in the PASCAL VOC
+    format.
+    """
+    filename = os.path.join(data_path, 'Annotations', index + '.xml')
+    tree = ET.parse(filename)
+    objs = tree.findall('object')
+    num_objs = len(objs)
+
+    boxes = np.zeros((num_objs, 5), dtype=np.uint32)
+    #gt_classes = np.zeros((num_objs), dtype=np.int32)
+    
+    # Load object bounding boxes into a data frame.
+    for ix, obj in enumerate(objs):
+        bbox = obj.find('bndbox')
+        # Make pixel indexes 0-based
+        x1 = float(bbox.find('xmin').text)
+        y1 = float(bbox.find('ymin').text)
+        x2 = float(bbox.find('xmax').text)
+        y2 = float(bbox.find('ymax').text)
+
+        cls = class_to_ind[obj.find('name').text.lower().strip()]
+        boxes[ix, :] = [x1, y1, x2, y2, cls]
+        #gt_classes[ix] = cls
+
+    return boxes #, gt_classes
 
 
 
@@ -123,6 +174,9 @@ if __name__ == '__main__':
     'faster_rcnn_{}_{}_{}_{}.pth'.format(cfg.EXP_DIR, checksession, checkepoch, checkpoint))
 
   classes = datasets.xview.read_classes_from_file(meta_path)
+
+  # Load imdb
+  #imdb, roidb, ratio_list, ratio_index = combined_roidb('xview_'+dataset.split('_')[1]+'_val', training=False, shift=cfg.PIXEL_SHIFT)
 
   # initilize the network here.
   if net == 'vgg16':
@@ -157,6 +211,12 @@ if __name__ == '__main__':
   num_boxes = torch.empty(1, dtype=torch.int64, device=device)
   gt_boxes = torch.empty(1, dtype=torch.float32, device=device)
 
+
+  # Load gt boxes
+  class_to_ind = dict(zip(classes, range(len(classes))))
+  gt_boxes_all = _load_gt_boxes(data_path, image_path.split('/')[-1].split('.')[0], class_to_ind)
+  #print("gt_boxes_all:", gt_boxes_all, gt_boxes_all.shape)
+  #exit()
 
   # Read image to numpy array
   im_in = np.array(imread(image_path))
@@ -236,10 +296,10 @@ if __name__ == '__main__':
   im2show = im2show[:,:,::-1]
 
   # Plot ground truth if desired
+  im2show = Image.fromarray(im2show)
   if plot_gt:
-      im2show = Image.fromarray(im2show)
       im2show = anchors.draw_gt_boxes(im2show, data_path, image_path.split('/')[-1].split('.')[0], color="blue", linesize=2)
-      im2show = np.array(im2show)
+  im2show = np.array(im2show)
 
   for j in range(1, len(classes)):
       # Gather indices of the boxes that detected class j with '> thresh' confidence 
@@ -259,19 +319,21 @@ if __name__ == '__main__':
         cls_dets = cls_dets[keep.view(-1).long()]
         # Keep adding boxes to existing im2show
         im2show = vis_detections(im2show, classes[j], cls_dets.cpu().numpy(), thresh=vis_thresh)
+        #im2show = vis_color_coded(im2show, j, classes[j], cls_dets.cpu().numpy(), gt_boxes_all, thresh=vis_thresh, iou_thresh=iou_thresh, text=text)
 
 
 
 # Plot/Save image
 image_id = image_path.split('/')[-1].split('.')[0].split('_')[1]
 chip_id = image_path.split('/')[-1].split('.')[0].split('_')[2]
-save_name = image_path.split('/')[-1].split('.')[0] + '.pdf'
-model_id = cfg_file.split('/')[-1].split('.')[0]
+model_id = cfg_file.split('/')[-1].split('.')[0].replace('_', '-')
+save_name = image_path.split('/')[-1].split('.')[0] + '__' + model_id + '.pdf'
 
-plt.axis('off')
+#plt.axis('off')
 plt.title('Img: {}-{}   Model: {}'.format(image_id, chip_id, model_id))
 plt.imshow(im2show)
-plt.savefig('/raid/inkawhmj/WORK/xview_project/images/' + save_name)
+if save:
+    plt.savefig('/raid/inkawhmj/WORK/xview_project/images/' + save_name)
 plt.show()
 
 
