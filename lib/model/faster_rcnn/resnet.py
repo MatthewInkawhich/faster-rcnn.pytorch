@@ -98,6 +98,7 @@ class Bottleneck(nn.Module):
 
     out += residual
     out = self.relu(out)
+    #print("Bottleneck!", out.size())
 
     return out
 
@@ -347,6 +348,7 @@ class CustomBottleneck(nn.Module):
     #if not self.islast:
         
     out = self.relu(out)
+    #print("Bottleneck!", out.size())
 
     return out
 
@@ -360,7 +362,8 @@ class Custom_ResNet(nn.Module):
     self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3,bias=False)
     self.bn1 = nn.BatchNorm2d(64)
     self.relu = nn.ReLU(inplace=True)
-    self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+    #self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+    self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=0, ceil_mode=True)
 
     self.layer1 = None
     self.layer2 = None
@@ -385,18 +388,14 @@ class Custom_ResNet(nn.Module):
     if stride != 1 or self.inplanes != planes * block.expansion:
         #print("downsample, stride:", stride)
         downsample = nn.Sequential(
-            #conv1x1(self.inplanes, planes * block.expansion, stride),
-            #nn.BatchNorm2d(planes * block.expansion),
             nn.Conv2d(self.inplanes, planes * block.expansion,
                 kernel_size=1, stride=stride, bias=False),
             nn.BatchNorm2d(planes * block.expansion),
         )   
     layers = []
-    #layers.append(block(self.inplanes, planes, stride, downsample, islast=(islast and blocks==1)))
     layers.append(block(self.inplanes, planes, stride, downsample, islast=False))
     self.inplanes = planes * block.expansion
     for cnt in range(1, blocks):
-        #layers.append(block(self.inplanes, planes, islast=(islast and (cnt==blocks-1))))
         layers.append(block(self.inplanes, planes, islast=False))
     return nn.Sequential(*layers)
 
@@ -596,8 +595,8 @@ class myresnet2(_fasterRCNN):
     assert dummy_out.size()[1] == self.dout_base_model, "RCNN_base dummy output featmap's depth does NOT match self.dout_base_model!"
 
     # Create new RCNN_top
-    self.layer4 = self._make_layer(CustomBottleneck, self.dout_base_model, self.dout_base_model // 2, 3, stride=2, islast=False)
-    self.RCNN_top = nn.Sequential(self.layer4)
+    self.RCNN_top = nn.Sequential(self._make_layer(CustomBottleneck, self.dout_base_model, self.dout_base_model // 2, 3, stride=2, islast=False)
+)
 
     # Create linear layers
     self.RCNN_cls_score = nn.Linear(self.dout_base_model*2, self.n_classes)

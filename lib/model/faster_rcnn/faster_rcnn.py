@@ -65,7 +65,7 @@ class _fasterRCNN(nn.Module):
 
         # feed image data to base model to obtain base feature map
         base_feat = self.RCNN_base(im_data)
-        #print("base_feat:", base_feat.size())
+        #print("base_feat:", base_feat, base_feat.size())
         #exit()
 
         if get_anchors:
@@ -75,7 +75,7 @@ class _fasterRCNN(nn.Module):
 
         # feed base feature map tp RPN to obtain rois
         rois, rpn_scores, rpn_loss_cls, rpn_loss_bbox = self.RCNN_rpn(base_feat, im_info, gt_boxes, num_boxes)
-        #print("rois:", rois.size(), rois.dtype)
+        #print("rois:", rois, rois.size(), rois.dtype)
         #print("rpn_loss_cls:", rpn_loss_cls, rpn_loss_cls.size(), rpn_loss_cls.dtype)
         #print("rpn_loss_bbox:", rpn_loss_bbox, rpn_loss_bbox.size(), rpn_loss_bbox.dtype)
         #exit()
@@ -108,9 +108,9 @@ class _fasterRCNN(nn.Module):
             pooled_feat = self.RCNN_roi_pool(base_feat, rois.view(-1,5))
 
         # feed pooled features to top model
-        #print("pooled_feat before:", pooled_feat.size())
+        #print("pooled_feat before:", pooled_feat, pooled_feat.size())
         pooled_feat = self._head_to_tail(pooled_feat)  
-        #print("pooled_feat after:", pooled_feat.size())
+        #print("pooled_feat after:", pooled_feat, pooled_feat.size())
         #exit()
 
         # compute bbox offset
@@ -138,6 +138,9 @@ class _fasterRCNN(nn.Module):
 
         cls_prob = cls_prob.view(batch_size, rois.size(1), -1)
         bbox_pred = bbox_pred.view(batch_size, rois.size(1), -1)
+
+        #print("cls_prob:", cls_prob, cls_prob.size())
+        #print("bbox_pred:", bbox_pred, bbox_pred.size())
 
         return rois, cls_prob, bbox_pred, rpn_loss_cls, rpn_loss_bbox, RCNN_loss_cls, RCNN_loss_bbox, rois_label
 

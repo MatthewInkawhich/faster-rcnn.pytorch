@@ -233,9 +233,42 @@ if __name__ == '__main__':
 
   fasterRCNN.create_architecture()
 
+
+
+
+
+
+
+  #load_name = 'models/res101/xview_600/faster_rcnn_xview_600-A-16_1_6_23376.pth'
+  #print("load checkpoint %s" % (load_name))
+  #checkpoint = torch.load(load_name)
+  #print(checkpoint['model'])
+  #modified_sd = {}
+  #for key, value in checkpoint['model'].items():
+  #    modified_sd[key] = value
+  #    if args.net == 'res101_custom2':
+  #      if 'RCNN_top.0.' in key:
+  #          new_key = key.replace('RCNN_top.0', 'layer4')
+  #          modified_sd[new_key] = value
+      
+  #for each in modified_sd:
+  #    print("each:", each)
+
+  #fasterRCNN.load_state_dict(modified_sd)
+
+  #print("model loaded!!!")
+  #print(fasterRCNN)
+
+
+
+
   print("load checkpoint %s" % (load_name))
   checkpoint = torch.load(load_name)
   fasterRCNN.load_state_dict(checkpoint['model'])
+
+
+
+
 
   if 'pooling_mode' in checkpoint.keys():
     cfg.POOLING_MODE = checkpoint['pooling_mode']
@@ -380,6 +413,9 @@ if __name__ == '__main__':
           rpn_loss_cls, rpn_loss_box, \
           RCNN_loss_cls, RCNN_loss_bbox, \
           rois_label = fasterRCNN(im_data, im_info, gt_boxes, num_boxes)
+
+          #print("Temp stop")
+          #exit()
 
           scores = cls_prob.data
           boxes = rois.data[:, :, 1:5]

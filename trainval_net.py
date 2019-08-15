@@ -287,6 +287,7 @@ if __name__ == '__main__':
       else:
         params += [{'params':[value],'lr':lr, 'weight_decay': cfg.TRAIN.WEIGHT_DECAY}]
 
+
   if args.cuda:
     fasterRCNN.cuda()
       
@@ -326,6 +327,7 @@ if __name__ == '__main__':
     loss_temp = 0
     start = time.time()
 
+
     # Adjust learning rate if necessary
     if epoch % (args.lr_decay_step + 1) == 0:
         adjust_learning_rate(optimizer, args.lr_decay_gamma)
@@ -351,7 +353,7 @@ if __name__ == '__main__':
       rpn_loss_cls, rpn_loss_box, \
       RCNN_loss_cls, RCNN_loss_bbox, \
       rois_label = fasterRCNN(im_data, im_info, gt_boxes, num_boxes)
-
+    
       loss = rpn_loss_cls.mean() + rpn_loss_box.mean() \
            + RCNN_loss_cls.mean() + RCNN_loss_bbox.mean()
       loss_temp += loss.item()

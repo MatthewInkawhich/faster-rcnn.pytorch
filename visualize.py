@@ -40,7 +40,7 @@ from model.rpn.bbox_transform import bbox_transform_inv
 from model.utils.net_utils import save_net, load_net, vis_detections, vis_color_coded
 from model.utils.blob import im_list_to_blob
 from model.faster_rcnn.vgg16 import vgg16
-from model.faster_rcnn.resnet import resnet
+from model.faster_rcnn.resnet import resnet, myresnet, myresnet2
 import pdb
 import datasets.xview
 import anchors
@@ -56,7 +56,7 @@ data_path = 'data/xView-voc-600'
 #image_path = data_path + '/JPEGImages/img_1397_25_rot0.png'  # stride
 #image_path = data_path + '/JPEGImages/img_237_28_rot0.png'  # orchard sparse
 #image_path = data_path + '/JPEGImages/img_2499_16_rot0.png'  # buildings blend in
-#image_path = data_path + '/JPEGImages/img_2026_16_rot0.png'  # housing development
+image_path = data_path + '/JPEGImages/img_2026_16_rot0.png'  # housing development
 #image_path = data_path + '/JPEGImages/img_1175_33_rot0.png'   # scale
 #image_path = data_path + '/JPEGImages/img_546_29_rot0.png'  # scale
 #image_path = data_path + '/JPEGImages/img_763_19_rot0.png'
@@ -64,15 +64,15 @@ data_path = 'data/xView-voc-600'
 #image_path = data_path + '/JPEGImages/img_1127_16_rot0.png'
 #image_path = data_path + '/JPEGImages/img_1444_51_rot0.png'
 #image_path = data_path + '/JPEGImages/img_2009_38_rot0.png'
-image_path = data_path + '/JPEGImages/img_110_16_rot0.png'
+#image_path = data_path + '/JPEGImages/img_110_16_rot0.png'
 
 cfg_file = 'cfgs/xview/600_A_8.yml'
 meta_path = 'data/xView-meta'
 dataset = 'xview_600'
 load_dir = 'models'
 net = 'res101'
-#cfg_file = 'cfgs/xview/600_A_8.yml'
 checksession = 1
+layer_cfg = [3,4,23]
 checkepoch = 6
 #checkpoint = 23376
 #checkpoint = 8000
@@ -83,8 +83,8 @@ vis_thresh = 0.4
 conf_thresh_for_det = vis_thresh
 iou_thresh = 0.5
 text = False
-plot_gt = False
-save = True
+plot_gt = True
+save = False
 
 
 
@@ -187,6 +187,8 @@ if __name__ == '__main__':
     fasterRCNN = resnet(classes, 50, pretrained=False, class_agnostic=class_agnostic)
   elif net == 'res152':
     fasterRCNN = resnet(classes, 152, pretrained=False, class_agnostic=class_agnostic)
+  elif net == 'res101_custom2':
+    fasterRCNN = myresnet2(classes, layer_cfg, 101, pretrained=False, class_agnostic=class_agnostic)
   else:
     print("network is not defined")
     pdb.set_trace()
